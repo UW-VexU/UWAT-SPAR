@@ -329,9 +329,11 @@ once E4 has frames. The dates are tentative and mainly show the order of work.
 
 - **Files:** `spar_ingest/registry.py`, `configs/ingest/`
 - **Do:**
-  - Survey the streamed Override events so far, by hand. For each stream record the URL, event
-    code, program (V5RC or VEX U) and whether it shows one fixed camera per field. Save it as a
-    small YAML or CSV in `configs/ingest/`, with URLs and metadata only.
+  - Pick 3 to 5 streams by hand from at least 2 signature events, including a VEX U event if one
+    has been streamed. For each stream record the URL, event code, program (V5RC or VEX U) and
+    whether it shows one fixed camera per field. Save it as a small YAML or CSV in
+    `configs/ingest/`, with URLs and metadata only. Collecting every stream automatically comes
+    later, with `spar ingest streams` and the Events API (L4).
   - Write PyArrow schemas and read and write functions for `registry/streams.parquet` and
     `registry/matches.parquet`. `matches.parquet` must at least map each match to a `stream_id`
     with `start_s` and `end_s` offsets into the stream. Propose the other columns in the PR.
