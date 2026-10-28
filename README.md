@@ -294,8 +294,9 @@ merges changes there. To change an area you don't own, open an issue or comment 
 
 ### Leo's tasks
 
-Only Leo can do these, because they need accounts, people or purchases. Start the first one now,
-since access is granted on request and has the longest wait.
+Assigned to Leo. Start with the API access request, since it has the longest wait.
+
+Setup and coordination:
 
 - [ ] Request VEX Events API access, and check whether Evan needs his own token (see the API
       token rule under [Working in parallel](#working-in-parallel-across-time-zones))
@@ -321,9 +322,7 @@ Code:
 
 ### Evan's tasks
 
-These let Evan work without waiting on Leo. None needs the Events API token, only E5 needs
-`spar-schema` (with a stopgap), and they touch different files from Leo's. Each task is one
-branch and one PR. Do E1, E2 and E3 in order. Start E4 as soon as E3 has cut a few matches, and E5
+Assigned to Evan. Each task is one branch and one PR. Do E1, E2 and E3 in order. Start E4 as soon as E3 has cut a few matches, and E5
 once E4 has frames. The dates are tentative and mainly show the order of work.
 
 #### E1. Stream list and registry tables (tentative: Oct 31)
