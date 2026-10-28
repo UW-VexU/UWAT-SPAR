@@ -1,0 +1,12 @@
+# Our robots' speed and carry limits. Used by spar-sim and spar-learn so the search only proposes
+# what our robots can do, and shared with the physics repo. Never used by perception.
+# Proposed keys, to be filled from the team's robots.
+robots:
+  robot_15in:
+    size_in: 15
+    max_speed_mps: TODO
+    carry: TODO
+  robot_24in:
+    size_in: 24
+    max_speed_mps: TODO
+    carry: TODO

@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.pytest_cache/
+.ruff_cache/
+build/
+dist/
+
+# Secrets (VEX Events API token, Hugging Face token)
+.env
+
+# Video, datasets and models live under $SPAR_DATA, never in git (spec section 5.6)
+*.mp4
+*.pt
+*.pth
+*.onnx
+*.safetensors
+
+# Outputs of the legacy auto-label scripts and Hydra runs started from the repo root
+/labels/
+/checked/
+/outputs/
+/multirun/

@@ -1,0 +1,61 @@
+# Override scene spec (spec section 5.2). Loaded and validated by spar_schema.load_scene().
+# TODO values come from the game manual v2.1 field drawings.
+scene: override
+rules_version: manual-v2.1
+schema_version: 0.1.0
+manual: https://manuals.vex.com/v5/override/v2.1/game/
+
+field:
+  size_m: [3.6576, 3.6576]          # 12 ft square
+  frame: {origin: field_center, x_axis: TODO_agree_with_physics_repo}
+  landmarks: landmarks.yaml         # named points for calibration
+  regions:                          # polygons in the field frame
+    midfield: TODO
+    quadrants: TODO                 # four, each tied to one Toggle
+    autonomous_line: TODO
+
+programs:
+  v5rc:
+    teams_per_alliance: 2
+    robots_per_alliance: 2
+    autonomous_s: 15
+    driver_s: 105
+  vexu:
+    teams_per_alliance: 1
+    robots_per_alliance: 2
+    robot_sizes_in: [15, 24]
+    autonomous_s: 30                # rule VUT4
+    driver_s: TODO
+timing:
+  endgame_s: 10                     # last 10 s, Midfield "king of the hill"
+
+agents:
+  classes: [robot]
+  alliances: [red, blue]
+  our_robots: robot_limits.yaml     # used by the search, never by perception
+
+objects:
+  cup:    {count: 56}
+  pin:    {count: 63, half_colors: TODO}   # alliance-colored and yellow halves
+  goal:   {count: 9, kinds: {alliance_red: 2, alliance_blue: 2, neutral_short: 4, neutral_tall: 1}, positions: TODO}
+  toggle: {count: 4, quadrant: TODO}
+  loader: {count: 4}
+
+objective:
+  module: scoring.py
+  function: score
+  checkpoints: [autonomous_end, match_end]
+  points:
+    autonomous_bonus: 12            # 6 each on a tie
+    alliance_pin_half: 5
+    yellow_pin_half: 10             # owner set by the quadrant Toggle, or by Midfield count for the Midfield goal
+    robot_in_midfield: 8
+
+prompts:                            # text prompts for the teacher models
+  robot: "a VEX robot"
+  cup: TODO
+  pin: TODO
+  toggle: TODO
+  landmark: TODO
+
+strategy_code: strategy_code.yaml

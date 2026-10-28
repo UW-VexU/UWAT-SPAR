@@ -1,0 +1,17 @@
+[project]
+name = "spar-eval"
+version = "0.1.0"
+description = "Metrics, statistics, pre-registration"
+requires-python = ">=3.12"
+dependencies = [
+    "spar-schema",
+    "typer>=0.12",
+]
+# Planned (spec section 10): trackeval, scipy, statsmodels
+
+[tool.uv.sources]
+spar-schema = { workspace = true }
+
+[build-system]
+requires = ["uv_build>=0.11,<0.14"]
+build-backend = "uv_build"

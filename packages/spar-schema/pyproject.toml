@@ -1,0 +1,18 @@
+[project]
+name = "spar-schema"
+version = "0.1.0"
+description = "Shared contracts: scene loading, table schemas, episode reader and writer"
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2",
+    "pyarrow",
+    "pyyaml",
+]
+
+[tool.ruff]
+extend = "../../pyproject.toml"
+target-version = "py311"
+
+[build-system]
+requires = ["uv_build>=0.11,<0.14"]
+build-backend = "uv_build"

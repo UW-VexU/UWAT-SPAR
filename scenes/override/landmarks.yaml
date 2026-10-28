@@ -1,0 +1,4 @@
+# Named field points for calibration, in the field frame (m), from the game manual v2.1 field
+# drawings. Used by spar-perception and spar-gt for calibration. The physics repo's field
+# landmarks must match these within 1 cm (spec section 8).
+landmarks: {}                      # TODO, for example  <name>: [x, y, z]

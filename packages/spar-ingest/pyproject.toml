@@ -1,0 +1,17 @@
+[project]
+name = "spar-ingest"
+version = "0.1.0"
+description = "Match records, stream download, cutting"
+requires-python = ">=3.12"
+dependencies = [
+    "spar-schema",
+    "typer>=0.12",
+]
+# Planned (spec section 10): yt-dlp, opencv-python, an HTTP client for the VEX Events API
+
+[tool.uv.sources]
+spar-schema = { workspace = true }
+
+[build-system]
+requires = ["uv_build>=0.11,<0.14"]
+build-backend = "uv_build"

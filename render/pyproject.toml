@@ -1,0 +1,18 @@
+[project]
+name = "spar-render"
+version = "0.1.0"
+description = "Synthetic broadcast video with exact labels, in its own Blender environment"
+# Each bpy release pins one Python version: 3.11 for bpy 4.5 LTS, 3.13 for bpy 5.2.
+# Pin this once the bpy version is chosen (spec section 6.10).
+requires-python = ">=3.11"
+dependencies = [
+    "spar-schema",
+]
+# Planned (spec section 10): bpy (4.5 LTS or 5.2.3)
+
+[tool.uv.sources]
+spar-schema = { path = "../packages/spar-schema" }
+
+[build-system]
+requires = ["uv_build>=0.11,<0.14"]
+build-backend = "uv_build"

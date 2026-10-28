@@ -1,0 +1,30 @@
+# Override strategy code (spec section 5.4): a short, readable record of what one alliance tried
+# to do in a match. Weights stay at 1.0 until the coder study sets them. The distance is the
+# weighted sum of per-field distances, each normalized to [0, 1].
+fields:
+  auton_route:                     # goals and Toggles touched during autonomous, in order
+    type: sequence
+    distance: edit
+    weight: 1.0
+  goal_order:                      # ordered goals each robot scored on
+    type: per_robot_sequence
+    distance: edit
+    weight: 1.0
+  toggle_share:                    # share of match time the alliance held each Toggle
+    type: vector
+    length: 4
+    distance: l1
+    weight: 1.0
+  time_split:                      # each robot's time in scoring, loading, defense, Toggles
+    type: per_robot_simplex
+    parts: [scoring, loading, defense, toggles]
+    distance: l1
+    weight: 1.0
+  midfield_entry:                  # when each robot entered the Midfield (null if never)
+    type: per_robot_time
+    distance: abs_seconds
+    missing_penalty: TODO
+    weight: 1.0
+threshold:
+  method: coder_p95                # two codes are different only if farther apart than the
+  matches: 50                      # 95th percentile of two human coders on the same match

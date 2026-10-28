@@ -1,0 +1,38 @@
+[project]
+name = "spar-workspace"
+version = "0.1.0"
+description = "SPAR: Synthetic Play from Archived Replays"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+# spar-cli depends on every other workspace package, so `uv sync` installs all of them.
+dependencies = [
+    "spar-cli",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "ruff>=0.6",
+]
+
+[tool.uv.workspace]
+members = ["packages/*"]
+
+[tool.uv.sources]
+spar-cli = { workspace = true }
+
+[tool.ruff]
+line-length = 100
+src = ["packages/*/src", "render/src"]
+extend-exclude = [
+    # Legacy scripts moved from the repo root, excluded until they are ported (spec section 11).
+    "packages/spar-perception/src/spar_perception/autolabel/pipeline.py",
+    "packages/spar-perception/src/spar_perception/autolabel/review.py",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests", "packages"]
+addopts = ["--import-mode=importlib"]
