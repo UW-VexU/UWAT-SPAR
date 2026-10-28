@@ -11,6 +11,8 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "jax>=0.12.0.1",
+    "numpy>=2.5.4",
     "pre-commit>=4.7.0",
     "pytest>=8",
     "ruff>=0.6",
@@ -35,5 +37,5 @@ extend-exclude = [
 select = ["E", "F", "I", "UP", "B"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests", "packages"]
+testpaths = ["tests", "packages", "scenes"]
 addopts = ["--import-mode=importlib"]

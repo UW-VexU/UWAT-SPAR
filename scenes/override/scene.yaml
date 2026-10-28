@@ -1,18 +1,40 @@
 # Override scene spec (spec section 5.2). Loaded and validated by spar_schema.load_scene().
-# TODO values come from the game manual v2.1 field drawings.
+#
+# Sources: game manual v2.1 (October 8, 2026) for rules, timing and points. Field geometry comes
+# from the Appendix A drawings in the v1.1 PDF (Field Element Locations, Tape Line Specifications,
+# AprilTag Numbering/Locations); the v2.0 and v2.1 changelogs list no field changes. README.md
+# summarizes the rules and maps the Goal IDs.
+#
+# Coordinates are meters from the field center, with x toward the blue Alliance Station (right in
+# the manual's audience view), y away from the audience (toward the drawings' 0° mark) and z up.
+# That frame is a proposal until the physics repo agrees to it (field.frame.x_axis).
 scene: override
 rules_version: manual-v2.1
 schema_version: 0.1.0
 manual: https://manuals.vex.com/v5/override/v2.1/game/
 
 field:
-  size_m: [3.6576, 3.6576]          # 12 ft square
-  frame: {origin: field_center, x_axis: TODO_agree_with_physics_repo}
+  size_m: [3.5664, 3.5664]          # inside the Field Perimeter, wall to wall (nominally 12 ft)
+  frame: {origin: field_center, x_axis: TODO_confirm_toward_blue_station}
   landmarks: landmarks.yaml         # named points for calibration
-  regions:                          # polygons in the field frame
-    midfield: TODO
-    quadrants: TODO                 # four, each tied to one Toggle
-    autonomous_line: TODO
+  regions:                          # polygons in the field frame, as [x, y] corners
+    # The Midfield is bounded by the inner edges of its white tape square. These corners are on
+    # the tape centerline, which follows the tile seams, so the true region is about half a tape
+    # width smaller.
+    midfield: [[-0.5981, 0.0], [0.0, -0.5981], [0.5981, 0.0], [0.0, 0.5981]]
+    # Triangles between the field diagonals, outside the Midfield. Tape widths and the Load Zone
+    # corners are ignored.
+    quadrants:
+      red_1: [[-1.7832, 1.7832], [-1.7832, -1.7832], [-0.2991, -0.2991], [-0.5981, 0.0], [-0.2991, 0.2991]]
+      red_2: [[-1.7832, -1.7832], [1.7832, -1.7832], [0.2991, -0.2991], [0.0, -0.5981], [-0.2991, -0.2991]]
+      blue_1: [[1.7832, -1.7832], [1.7832, 1.7832], [0.2991, 0.2991], [0.5981, 0.0], [0.2991, -0.2991]]
+      blue_2: [[1.7832, 1.7832], [-1.7832, 1.7832], [-0.2991, 0.2991], [0.0, 0.5981], [0.2991, 0.2991]]
+    # A pair of white tape lines 2.50 in apart along this diagonal, continuing around the
+    # Midfield. The red Quadrants are on one side and the blue Quadrants on the other.
+    autonomous_line:
+      line: [[-1.7832, 1.7832], [1.7832, -1.7832]]
+      gap_m: 0.0635
+      sides: {red: [red_1, red_2], blue: [blue_1, blue_2]}
 
 programs:
   v5rc:
@@ -23,11 +45,11 @@ programs:
   vexu:
     teams_per_alliance: 1
     robots_per_alliance: 2
-    robot_sizes_in: [15, 24]
+    robot_sizes_in: [15, 24]        # rule VUR1
     autonomous_s: 30                # rule VUT4
-    driver_s: TODO
+    driver_s: 90                    # rule VUT5
 timing:
-  endgame_s: 10                     # last 10 s, Midfield "king of the hill"
+  endgame_s: 10                     # last 10 s; no Placing on the Midfield Goal (SG12)
 
 agents:
   classes: [robot]
@@ -35,27 +57,87 @@ agents:
   our_robots: robot_limits.yaml     # used by the search, never by perception
 
 objects:
-  cup:    {count: 56}
-  pin:    {count: 63, half_colors: TODO}   # alliance-colored and yellow halves
-  goal:   {count: 9, kinds: {alliance_red: 2, alliance_blue: 2, neutral_short: 4, neutral_tall: 1}, positions: TODO}
-  toggle: {count: 4, quadrant: TODO}
-  loader: {count: 4}
+  cup:                              # one transparent half and one opaque (gray) half
+    count: 56
+  pin:
+    count: 63
+    half_colors: [red, blue, yellow]
+    types: {red_blue: 4, red_yellow: 20, blue_yellow: 20, yellow_yellow: 19}  # V5RC field
+  goal:
+    count: 9
+    heights_m: {alliance: 0.0825, neutral_short: 0.1465, neutral_tall: 0.2227}
+    # ID: kind, Quadrant (null for the Midfield), the AprilTag number on the Goal, base center.
+    # IDs are the side of the Autonomous Line plus the AprilTag number.
+    instances:
+      R1: {kind: neutral_short, quadrant: red_1, apriltag: 1, xy: [-1.1961, 0.5981]}
+      R2: {kind: alliance_red, quadrant: red_1, apriltag: 2, xy: [-1.1961, -0.5981]}
+      R3: {kind: alliance_red, quadrant: red_2, apriltag: 3, xy: [-0.5981, -1.1961]}
+      R4: {kind: neutral_short, quadrant: red_2, apriltag: 4, xy: [0.5981, -1.1961]}
+      B1: {kind: neutral_short, quadrant: blue_1, apriltag: 1, xy: [1.1961, -0.5981]}
+      B2: {kind: alliance_blue, quadrant: blue_1, apriltag: 2, xy: [1.1961, 0.5981]}
+      B3: {kind: alliance_blue, quadrant: blue_2, apriltag: 3, xy: [0.5981, 1.1961]}
+      B4: {kind: neutral_short, quadrant: blue_2, apriltag: 4, xy: [-0.5981, 1.1961]}
+      M: {kind: neutral_tall, quadrant: null, apriltag: 0, xy: [0.0, 0.0]}
+  toggle:                           # one per Quadrant, mounted on top of the Field Perimeter
+    count: 4
+    length_m: 0.6562
+    faces: [red, blue, yellow]      # all start yellow, facing into the field
+    # ID: Quadrant, and the center of the wall it is on (inside face).
+    instances:
+      T_red_1: {quadrant: red_1, xy: [-1.7832, 0.0]}
+      T_red_2: {quadrant: red_2, xy: [0.0, -1.7832]}
+      T_blue_1: {quadrant: blue_1, xy: [1.7832, 0.0]}
+      T_blue_2: {quadrant: blue_2, xy: [0.0, 1.7832]}
+  loader:                           # two beside each Alliance Station
+    count: 4
+    instances:
+      L_red_far: {alliance: red, xy: [-1.6882, 1.4926]}
+      L_red_near: {alliance: red, xy: [-1.6882, -1.4926]}
+      L_blue_far: {alliance: blue, xy: [1.6882, 1.4926]}
+      L_blue_near: {alliance: blue, xy: [1.6882, -1.4926]}
 
 objective:
   module: scoring.py
   function: score
   checkpoints: [autonomous_end, match_end]
   points:
-    autonomous_bonus: 12            # 6 each on a tie
-    alliance_pin_half: 5
-    yellow_pin_half: 10             # owner set by the quadrant Toggle, or by Midfield count for the Midfield goal
-    robot_in_midfield: 8
+    autonomous_bonus: 12            # to the Alliance ahead at the end of autonomous (SC7)
+    autonomous_tie_bonus: 6         # to each Alliance on a tie, including 0-0
+    alliance_pin_half: 5            # each Scored red or blue Pin Half (SC3)
+    yellow_pin_half: 10             # each Scored yellow Pin Half, for the Alliance that Owns it (SC5)
+    robot_in_midfield: 8            # each Robot ending at least partially in the Midfield (SC6)
 
-prompts:                            # text prompts for the teacher models
+# Text prompts for the teacher models: first guesses, to tune on real frames. Field landmarks
+# come from the keypoint model (spar-perception calib/landmarks.py), not from a text prompt.
+prompts:
   robot: "a VEX robot"
-  cup: TODO
-  pin: TODO
-  toggle: TODO
-  landmark: TODO
+  cup: "a gray and clear plastic cup"
+  pin: "a red, blue or yellow plastic pin"
+  toggle: "a long triangular bar on the field wall"
 
 strategy_code: strategy_code.yaml
+
+# The arrays scoring.py reads (spar_schema.TaskStateSpec). Codes are positions in `values`.
+state:
+  dims:
+    goal: [R1, R2, R3, R4, B1, B2, B3, B4, M]
+    level: 16                       # stack levels per Goal, bottom first
+    half: [lower, upper]
+    quadrant: [red_1, red_2, blue_1, blue_2]
+    alliance: [red, blue]
+  fields:
+    # Each Goal's stack, bottom first. Level 0 sits in the Goal, and a stack that scores
+    # alternates Pin, Cup, Pin, Cup, ...
+    kind: {dims: [goal, level], dtype: int8, values: [empty, pin, cup]}
+    pin_color: {dims: [goal, level, half], dtype: int8, values: [yellow, red, blue]}
+    # A Cup with its opaque half down (the manual's "clear side up").
+    cup_opaque_lower: {dims: [goal, level], dtype: bool}
+    # The socket this level sits in (the Goal, or the Cup half below it) holds more than one Pin
+    # Half.
+    crowded: {dims: [goal, level], dtype: bool}
+    toggle_face: {dims: [quadrant], dtype: int8, values: [yellow, red, blue]}
+    toggle_set: {dims: [quadrant], dtype: bool}  # fully seated and not touched by a Robot (SC4)
+    robots_in_midfield: {dims: [alliance], dtype: int8}
+    checkpoint: {dtype: int8, values: [autonomous_end, match_end]}
+    program: {dtype: int8, values: [v5rc, vexu]}
+    autonomous_winner: {dtype: int8, values: [none, red, blue, tie]}  # read at match_end

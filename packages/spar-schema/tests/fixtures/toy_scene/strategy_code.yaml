@@ -1,0 +1,8 @@
+fields:
+  first_target:
+    type: sequence
+    distance: edit
+    weight: 1.0
+threshold:
+  method: coder_p95
+  matches: 50

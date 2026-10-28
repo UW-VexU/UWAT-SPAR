@@ -1,4 +1,29 @@
-# Named field points for calibration, in the field frame (m), from the game manual v2.1 field
-# drawings. Used by spar-perception and spar-gt for calibration. The physics repo's field
-# landmarks must match these within 1 cm (spec section 8).
-landmarks: {}                      # TODO, for example  <name>: [x, y, z]
+# Named field points for calibration, in the field frame (m): origin at the field center, x toward
+# the blue Alliance Station, y away from the audience, z up (see scene.yaml). From the Appendix A
+# drawings. The physics repo's field landmarks must match these within 1 cm (spec section 8).
+landmarks:
+  # Inside corners of the Field Perimeter, on the floor and at the top of the wall. Wall height is
+  # for the portable perimeter (11.54 in); the metal perimeter is 11.50 in.
+  corner_red_far: [-1.7832, 1.7832, 0.0]
+  corner_red_near: [-1.7832, -1.7832, 0.0]
+  corner_blue_far: [1.7832, 1.7832, 0.0]
+  corner_blue_near: [1.7832, -1.7832, 0.0]
+  corner_red_far_top: [-1.7832, 1.7832, 0.2931]
+  corner_red_near_top: [-1.7832, -1.7832, 0.2931]
+  corner_blue_far_top: [1.7832, 1.7832, 0.2931]
+  corner_blue_near_top: [1.7832, -1.7832, 0.2931]
+  # Corners of the Midfield tape square, on the tape centerline.
+  midfield_red: [-0.5981, 0.0, 0.0]
+  midfield_blue: [0.5981, 0.0, 0.0]
+  midfield_far: [0.0, 0.5981, 0.0]
+  midfield_near: [0.0, -0.5981, 0.0]
+  # Goal base centers on the floor (Goal IDs as in scene.yaml).
+  goal_R1: [-1.1961, 0.5981, 0.0]
+  goal_R2: [-1.1961, -0.5981, 0.0]
+  goal_R3: [-0.5981, -1.1961, 0.0]
+  goal_R4: [0.5981, -1.1961, 0.0]
+  goal_B1: [1.1961, -0.5981, 0.0]
+  goal_B2: [1.1961, 0.5981, 0.0]
+  goal_B3: [0.5981, 1.1961, 0.0]
+  goal_B4: [-0.5981, 1.1961, 0.0]
+  goal_M: [0.0, 0.0, 0.0]

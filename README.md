@@ -49,7 +49,7 @@ fixed files and commit again.
 |---|---|
 | `uv sync` | Install or update `.venv` to match `uv.lock` |
 | `uv run spar --help` | List the command groups. `uv run spar ingest --help` lists one group's commands |
-| `uv run pytest` | Run every test (`tests/` and each `packages/*/tests/`) |
+| `uv run pytest` | Run every test (`tests/`, each `packages/*/tests/` and each `scenes/*/tests/`) |
 | `uv run pytest packages/spar-schema` | Run one package's tests |
 | `uv run pytest tests/test_workspace.py -k cli` | Run one file, filtered by test name |
 | `uv run ruff check` | Lint. Add `--fix` to apply safe fixes |
@@ -68,6 +68,7 @@ uv run ruff check && uv run ruff format --check && uv run pytest
 | Where | What goes there |
 |---|---|
 | `packages/spar-<name>/tests/` | Unit tests for that package. Use tiny synthetic tables built in the test, not real data |
+| `scenes/<game>/tests/` | Tests for that game's scoring rules, with hand-built states. Only these may mention a game |
 | `tests/` | Cross-package and end-to-end tests |
 | `tests/fixtures/` | Small files checked into git. `tests/fixtures/frames/` holds 8 livestream screenshots |
 
@@ -76,8 +77,13 @@ uv run ruff check && uv run ruff format --check && uv run pytest
 - Larger test data, such as the 30 s sample match with hand labels, is fetched by
   `scripts/fetch_test_data.py` (not written yet) and never committed.
 - pytest uses `--import-mode=importlib`, so test files in different packages may share a name.
-- Right now the only test is `tests/test_workspace.py`. It checks that every package imports and
-  that `spar` mounts every command group. A package with no tests prints `no tests ran`.
+- Covered so far: `tests/test_workspace.py` checks that every package imports and that `spar`
+  mounts every command group, `tests/test_scenes.py` loads every scene in `scenes/`,
+  `packages/spar-schema/tests/` covers the scene loader, task state and episode format, and
+  `scenes/override/tests/` covers every Override scoring rule, in NumPy and under JAX. A package
+  with no tests prints `no tests ran`.
+- Package tests that need a scene use a small made-up one, like
+  `packages/spar-schema/tests/fixtures/toy_scene/`, so they don't depend on a real game.
 
 ## How the repo is organized
 
@@ -320,10 +326,10 @@ Setup and coordination:
 Code:
 
 - [x] **L1.** Commit the skeleton. Add GitHub Actions CI (ruff and pytest on CPU) and pre-commit
-- [ ] **L2.** `spar-schema` v0.1: `load_scene()`, `SceneSpec`, episode table schemas,
+- [x] **L2.** `spar-schema` v0.1: `load_scene()`, `SceneSpec`, episode table schemas,
       `EpisodeWriter` and `EpisodeReader`, version checks. Done when the Override scene loads, an
       episode round trip passes in CI and an unknown major version is rejected
-- [ ] **L3.** Fill the Override `scene.yaml` TODOs from manual v2.1, including landmark names.
+- [x] **L3.** Fill the Override `scene.yaml` TODOs from manual v2.1, including landmark names.
       Write `scoring.py` with a unit test for every rule
 - [ ] **L4.** Once API access arrives: the Events API client, `spar ingest events`, `matches` and
       `count`, and the count of streamed matches by program

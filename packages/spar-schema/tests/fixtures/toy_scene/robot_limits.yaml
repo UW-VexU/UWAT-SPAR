@@ -1,0 +1,3 @@
+robots:
+  bot:
+    max_speed_mps: 1.0

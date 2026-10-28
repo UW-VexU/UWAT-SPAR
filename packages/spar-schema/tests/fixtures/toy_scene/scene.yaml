@@ -1,0 +1,49 @@
+# A small, complete scene for the spar-schema tests. Not a real game.
+scene: toy
+rules_version: v1
+schema_version: 0.1.0
+manual: null
+
+field:
+  size_m: [2.0, 2.0]
+  frame: {origin: field_center, x_axis: toward_blue}
+  landmarks: landmarks.yaml
+  regions: {}
+
+programs:
+  solo:
+    teams_per_alliance: 1
+    robots_per_alliance: 1
+    autonomous_s: 10
+    driver_s: 50
+
+timing: {}
+
+agents:
+  classes: [robot]
+  alliances: [red, blue]
+  our_robots: robot_limits.yaml
+
+objects:
+  ball: {count: 4}
+
+objective:
+  module: scoring.py
+  function: score
+  checkpoints: [match_end]
+  points: {ball: 1}
+
+prompts:
+  robot: "a robot"
+  ball: "a ball"
+
+strategy_code: strategy_code.yaml
+
+state:
+  dims:
+    alliance: [red, blue]
+    slot: 3
+  fields:
+    points: {dims: [alliance], dtype: int16}
+    holder: {dims: [slot], dtype: int8, values: [nobody, red, blue]}
+    over: {dtype: bool}
