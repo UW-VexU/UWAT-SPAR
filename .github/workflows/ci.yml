@@ -1,0 +1,22 @@
+# Lint and test on every push to main and every pull request (spec section 9).
+# CPU only: tests must not need a GPU, $SPAR_DATA or network access.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.3.3
+        with:
+          enable-cache: true
+      # --locked fails if uv.lock is out of date with the pyproject.toml files.
+      - run: uv sync --locked
+      - run: uv run ruff check
+      - run: uv run ruff format --check
+      - run: uv run pytest

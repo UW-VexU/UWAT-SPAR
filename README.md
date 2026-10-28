@@ -26,6 +26,7 @@ powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | ie
 git clone https://github.com/UW-VexU/UWAT-SPAR.git
 cd UWAT-SPAR
 uv sync
+uv run pre-commit install    # once per clone: checks every commit
 
 # Check it works
 uv run spar --help
@@ -35,6 +36,12 @@ uv run pytest
 `uv sync` creates `.venv/` and installs every workspace package in editable mode, so code changes
 take effect without reinstalling. Run it again after pulling or after changing any
 `pyproject.toml`.
+
+`uv run pre-commit install` adds a git hook that runs ruff and a few file checks on every commit,
+including a block on files over 1 MB so video and model weights can't slip into git. Git doesn't
+share hooks through the repo, so everyone runs it once in their own clone, including anyone who
+cloned before it was added. If a commit is stopped because the hook fixed something, add the
+fixed files and commit again.
 
 ## Everyday commands
 
@@ -49,7 +56,8 @@ take effect without reinstalling. Run it again after pulling or after changing a
 | `uv run ruff format` | Format the code |
 | `uv add --package spar-ingest yt-dlp` | Add a dependency to one package (updates its `pyproject.toml` and `uv.lock`) |
 
-Before you push, run these checks. CI is not set up yet, but it will run the same three:
+CI ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs the same three checks on every
+push to `main` and every pull request, so run them before you push:
 
 ```bash
 uv run ruff check && uv run ruff format --check && uv run pytest
@@ -77,6 +85,7 @@ uv run ruff check && uv run ruff format --check && uv run pytest
 UWAT-SPAR/
 ├── pyproject.toml     workspace root: member list, dev tools, ruff and pytest settings
 ├── uv.lock            exact versions of every dependency, committed
+├── .github/workflows/ CI: lint and tests on every push and pull request
 ├── scenes/            game rules, one folder per game (override, pushback, pinnacle)
 ├── packages/          the Python packages, one per pipeline stage (table below)
 ├── render/            Blender rendering, its own environment (not in the uv workspace)
@@ -310,7 +319,7 @@ Setup and coordination:
 
 Code:
 
-- [ ] **L1.** Commit the skeleton. Add GitHub Actions CI (ruff and pytest on CPU) and pre-commit
+- [x] **L1.** Commit the skeleton. Add GitHub Actions CI (ruff and pytest on CPU) and pre-commit
 - [ ] **L2.** `spar-schema` v0.1: `load_scene()`, `SceneSpec`, episode table schemas,
       `EpisodeWriter` and `EpisodeReader`, version checks. Done when the Override scene loads, an
       episode round trip passes in CI and an unknown major version is rejected

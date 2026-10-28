@@ -10,7 +10,7 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 # Text -> boxes
 name = "IDEA-Research/grounding-dino-base"
 # Proc turns things into tensors, dino gets the objects
-proc = AutoProcessor.from_pretrained(name) 
+proc = AutoProcessor.from_pretrained(name)
 dino = AutoModelForZeroShotObjectDetection.from_pretrained(name).to(device)
 
 # Boxes -> outlines
@@ -21,7 +21,7 @@ print("Program Started...")
 for path in sorted(glob.glob("frames/*.jpg")):
     img = Image.open(path).convert("RGB")
     w, h = img.size
-    
+
     # Find robots
     inputs = proc(images=img, text="A Vex Robot.", return_tensors="pt").to(device)
     with torch.no_grad():
