@@ -16,11 +16,31 @@ works in spar-state and inside the JAX simulator. state.parquet stores it as JSO
 """
 
 import json
+from dataclasses import dataclass
 from typing import Any, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, model_validator
 
 TaskState = dict[str, Any]
+
+
+@dataclass(frozen=True)
+class Snapshot:
+    """The match at one moment, as spar-state hands it to a scene's build_state(snapshot, scene).
+
+    robots and objects hold the latest tracks.parquet and objects.parquet row at or before t for
+    each agent and each object, as dicts keyed by column name. Robots also carry their alliance
+    from the roster, and may carry radius_m, how far the robot reaches from its center. Object
+    attrs are parsed from JSON.
+    """
+
+    t: float
+    checkpoint: str | None
+    program: str
+    autonomous_winner: str  # red, blue, tie or none, from the official result
+    robots: list[dict[str, Any]]
+    objects: list[dict[str, Any]]
+
 
 Dtype = Literal["bool", "int8", "int16", "int32", "float32"]
 

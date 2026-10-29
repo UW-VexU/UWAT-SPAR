@@ -4,6 +4,7 @@ section 5).
 Public API only.
 """
 
+from spar_schema.actions import Action, ActionArg, ActionSet, action_set
 from spar_schema.episode import (
     ACTIONS_SCHEMA,
     EVENTS_SCHEMA,
@@ -25,6 +26,7 @@ from spar_schema.episode import (
     VideoRef,
 )
 from spar_schema.io import EpisodeReader, EpisodeWriter, SchemaError, read_table, validate_table
+from spar_schema.prereg import CutoffError, CutoffPolicy, require_processable
 from spar_schema.scene import (
     Scene,
     SceneError,
@@ -35,12 +37,13 @@ from spar_schema.scene import (
 )
 from spar_schema.start_state import (
     START_STATES_SCHEMA,
+    EpisodeMoments,
     RobotState,
     StartState,
     read_start_states,
     write_start_states,
 )
-from spar_schema.task_state import StateFieldSpec, TaskState, TaskStateSpec
+from spar_schema.task_state import Snapshot, StateFieldSpec, TaskState, TaskStateSpec
 from spar_schema.version import SCHEMA_VERSION, SchemaVersionError, check_compatible
 
 __all__ = [
@@ -52,8 +55,14 @@ __all__ = [
     "STATE_SCHEMA",
     "TABLES",
     "TRACKS_SCHEMA",
+    "Action",
+    "ActionArg",
+    "ActionSet",
+    "CutoffError",
+    "CutoffPolicy",
     "EpisodeKind",
     "EpisodeMeta",
+    "EpisodeMoments",
     "EpisodeReader",
     "EpisodeWriter",
     "EventSource",
@@ -70,6 +79,7 @@ __all__ = [
     "SceneVersionError",
     "SchemaError",
     "SchemaVersionError",
+    "Snapshot",
     "ScoreCheck",
     "StartState",
     "StateFieldSpec",
@@ -78,10 +88,12 @@ __all__ = [
     "TaskState",
     "TaskStateSpec",
     "VideoRef",
+    "action_set",
     "check_compatible",
     "load_scene",
     "read_start_states",
     "read_table",
+    "require_processable",
     "validate_table",
     "write_start_states",
 ]

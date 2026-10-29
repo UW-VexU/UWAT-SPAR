@@ -4,6 +4,8 @@ version = "0.1.0"
 description = "Dataset catalog and converters"
 requires-python = ">=3.12"
 dependencies = [
+    "numpy>=2.5.4",
+    "pyarrow>=26.0.0",
     "spar-schema",
     "typer>=0.12",
 ]

@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Metrics, statistics, pre-registration"
 requires-python = ">=3.12"
 dependencies = [
+    "pyarrow>=26.0.0",
     "spar-schema",
     "typer>=0.12",
 ]

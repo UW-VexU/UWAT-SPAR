@@ -17,8 +17,10 @@ def test_toy_scene_loads(scene):
     assert scene.rules_version == "v1"
     assert scene.todos == ()
     assert scene.alliances == ["red", "blue"]
-    assert scene.object_classes == ["ball"]
-    assert scene.checkpoints == ["match_end"]
+    assert scene.object_classes == ["ball", "goal"]
+    assert scene.checkpoints == ["autonomous_end", "match_end"]
+    assert scene.checkpoint_time("autonomous_end", "solo") == 10.0
+    assert scene.checkpoint_time("match_end", "solo") == 62.0  # 10 + 50, plus a 2 s delay
     assert scene.landmarks["red_corner"] == (-1.0, -1.0, 0.0)
     assert list(scene.strategy_code.fields) == ["first_target"]
     state = scene.task_state.empty(np)
@@ -75,4 +77,30 @@ def test_missing_scoring_function(toy_scene_dir, edit):
 def test_missing_referenced_file(toy_scene_dir):
     (toy_scene_dir / "landmarks.yaml").unlink()
     with pytest.raises(SceneError, match="landmarks.yaml"):
+        load_scene(toy_scene_dir)
+
+
+def test_scene_without_a_state_plugin_cannot_build_states(toy_scene_dir, edit):
+    edit(toy_scene_dir / "scene.yaml", "  state: state.py:build_state\n", "")
+    scene = load_scene(toy_scene_dir)
+    assert not scene.has_plugin("state")
+    with pytest.raises(SceneError, match="no 'state' plugin"):
+        scene.build_state(None)
+
+
+def test_plugin_entries_must_name_a_file_and_function(toy_scene_dir, edit):
+    edit(toy_scene_dir / "scene.yaml", "state: state.py:build_state", "state: state.py")
+    with pytest.raises(SceneError, match="plugins"):
+        load_scene(toy_scene_dir)
+
+
+def test_missing_state_plugin_file(toy_scene_dir):
+    (toy_scene_dir / "state.py").unlink()
+    with pytest.raises(SceneError, match="state.py"):
+        load_scene(toy_scene_dir)
+
+
+def test_checkpoint_times_must_cover_every_checkpoint(toy_scene_dir, edit):
+    edit(toy_scene_dir / "scene.yaml", "    autonomous_end: {after: autonomous}\n", "")
+    with pytest.raises(SceneError, match="checkpoint_at"):
         load_scene(toy_scene_dir)

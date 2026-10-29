@@ -40,6 +40,7 @@ programs:
   v5rc:
     teams_per_alliance: 2
     robots_per_alliance: 2
+    robot_sizes_in: [18]            # rule R3, the starting size limit
     autonomous_s: 15
     driver_s: 105
   vexu:
@@ -100,6 +101,9 @@ objective:
   module: scoring.py
   function: score
   checkpoints: [autonomous_end, match_end]
+  checkpoint_at:
+    autonomous_end: {after: autonomous}  # evaluated immediately (SC7)
+    match_end: {after: driver, delay_s: 5}  # up to 5 s after, once everything settles (SC1)
   points:
     autonomous_bonus: 12            # to the Alliance ahead at the end of autonomous (SC7)
     autonomous_tie_bonus: 6         # to each Alliance on a tie, including 0-0
@@ -116,6 +120,12 @@ prompts:
   toggle: "a long triangular bar on the field wall"
 
 strategy_code: strategy_code.yaml
+
+# Scene code that generic stages call (spar_schema.SceneSpec.plugins).
+plugins:
+  state: state.py:build_state         # the TaskState below, from objects and robots
+  events: events.py:extra_events      # Toggle flips, on top of the generic events
+  strategy: strategy.py:extract_code  # each alliance's five-field strategy code
 
 # The arrays scoring.py reads (spar_schema.TaskStateSpec). Codes are positions in `values`.
 state:

@@ -8,7 +8,8 @@ field:
   size_m: [2.0, 2.0]
   frame: {origin: field_center, x_axis: toward_blue}
   landmarks: landmarks.yaml
-  regions: {}
+  regions:
+    zone: [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]]
 
 programs:
   solo:
@@ -26,11 +27,19 @@ agents:
 
 objects:
   ball: {count: 4}
+  goal:
+    count: 2
+    instances:
+      red: {xy: [-0.8, 0.0]}
+      blue: {xy: [0.8, 0.0]}
 
 objective:
   module: scoring.py
   function: score
-  checkpoints: [match_end]
+  checkpoints: [autonomous_end, match_end]
+  checkpoint_at:
+    autonomous_end: {after: autonomous}
+    match_end: {after: driver, delay_s: 2}
   points: {ball: 1}
 
 prompts:
@@ -38,6 +47,11 @@ prompts:
   ball: "a ball"
 
 strategy_code: strategy_code.yaml
+
+plugins:
+  state: state.py:build_state
+  actions: sim.py:infer_action
+  sim: sim.py:rules
 
 state:
   dims:
@@ -47,3 +61,15 @@ state:
     points: {dims: [alliance], dtype: int16}
     holder: {dims: [slot], dtype: int8, values: [nobody, red, blue]}
     over: {dtype: bool}
+
+# A robot picks up a ball and drops it in a goal; either goal counts for the alliance it is named
+# after.
+sim:
+  items: [ball]
+  carry: 1
+  standoff_m: 0.2
+  actions:
+    idle: {}
+    pick: {args: {item: items}}
+    place: {args: {goal: goal}, to: goal}
+    park: {to: zone}

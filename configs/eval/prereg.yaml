@@ -1,0 +1,5 @@
+# Pre-registration and the training data cutoff (spec section 6.9). Footage recorded after the
+# cutoff day may be downloaded, but not cut, labeled or processed until `spar eval seal` has
+# sealed the candidate list (spar_schema.prereg.require_processable).
+scene: override
+cutoff: 2026-11-30                  # the last day of footage usable before sealing

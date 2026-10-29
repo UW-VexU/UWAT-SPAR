@@ -17,7 +17,7 @@ programs, alliances) come from the scene, and EpisodeWriter checks them against 
 """
 
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from enum import StrEnum
 from typing import Any, Literal, Self
 
@@ -193,10 +193,11 @@ class ScoreCheck(_Record):
     """Score check result at one checkpoint (spec section 6.4)."""
 
     computed: dict[str, float]  # points per alliance from the scene's score()
+    computed_winner: str | None = None  # red, blue or tie, when compared by winner
     official: dict[str, float] | None = None  # official points, when published
     official_winner: str | None = None  # when only the winner is published
     difference: dict[str, float] | None = None  # computed minus official
-    passed: bool
+    passed: bool | None  # None when the official result cannot be compared
 
 
 class EpisodeMeta(_Record):
@@ -210,6 +211,7 @@ class EpisodeMeta(_Record):
     program: str  # a program from the scene
     event_sku: str | None = None
     match_name: str | None = None
+    match_date: date | None = None  # the day the match was played; the cutoff guard reads it
     roster: dict[str, RosterEntry]  # agent ID, for example "red_1", to its team and alliance
     video: VideoRef | None = None
     pipeline: PipelineInfo = Field(default_factory=PipelineInfo)

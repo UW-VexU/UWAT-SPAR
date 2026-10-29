@@ -2,9 +2,12 @@
 
 spar-data samples moments from real episodes into start_states.parquet. Simulators (spar-sim, and
 the physics repo through env.reset_from) place robots and objects to match one of them.
+EpisodeMoments gives the StartState of one episode at any time: each robot's pose and velocity
+and every object's state, from the latest track and object row at or before it.
 """
 
 import json
+from bisect import bisect_right
 from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
@@ -13,7 +16,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 from pydantic import BaseModel
 
-from spar_schema.io import read_table, validate_table
+from spar_schema.io import EpisodeReader, read_table, validate_table
 from spar_schema.scene import Scene
 from spar_schema.version import file_metadata
 
@@ -26,6 +29,7 @@ ROBOT_STATE_TYPE = pa.struct(
         pa.field("vx", pa.float32(), nullable=False),  # m/s
         pa.field("vy", pa.float32(), nullable=False),
         pa.field("omega", pa.float32(), nullable=False),  # rad/s
+        pa.field("alliance", pa.string()),  # from the episode roster
     ]
 )
 
@@ -37,6 +41,8 @@ START_STATES_SCHEMA = pa.schema(
         pa.field("time_left_s", pa.float64(), nullable=False),
         pa.field("robots", pa.list_(ROBOT_STATE_TYPE), nullable=False),
         pa.field("objects", pa.string(), nullable=False),  # JSON list, one dict per object
+        pa.field("program", pa.string()),
+        pa.field("autonomous_winner", pa.string()),  # once the autonomous period is over
     ]
 )
 
@@ -49,6 +55,7 @@ class RobotState(BaseModel):
     vx: float
     vy: float
     omega: float
+    alliance: str | None = None
 
 
 class StartState(BaseModel):
@@ -59,6 +66,80 @@ class StartState(BaseModel):
     time_left_s: float
     robots: list[RobotState]
     objects: list[dict[str, Any]] = []  # one dict per object, keyed like objects.parquet columns
+    program: str | None = None
+    # The official autonomous winner, when the moment is after the autonomous period.
+    autonomous_winner: str | None = None
+
+
+class AsOf:
+    """The latest row at or before a time, for each key, over one table; built once, asked often."""
+
+    def __init__(self, table: pa.Table | None, key: str):
+        self.rows = [] if table is None else table.to_pylist()
+        self.times: dict[str, list[float]] = {}
+        self.index: dict[str, list[int]] = {}
+        for i in sorted(range(len(self.rows)), key=lambda i: self.rows[i]["t"]):
+            name = self.rows[i][key]
+            self.times.setdefault(name, []).append(self.rows[i]["t"])
+            self.index.setdefault(name, []).append(i)
+
+    def at(self, t: float) -> list[dict[str, Any]]:
+        found = []
+        for name, times in self.times.items():
+            k = bisect_right(times, t)
+            if k:
+                found.append(self.rows[self.index[name][k - 1]])
+        return found
+
+
+class EpisodeMoments:
+    """StartStates from one episode: EpisodeMoments(reader, scene).at(t)."""
+
+    def __init__(self, reader: EpisodeReader, scene: Scene):
+        self.meta = reader.meta
+        periods = scene.programs[self.meta.program]
+        if isinstance(periods.autonomous_s, str) or isinstance(periods.driver_s, str):
+            raise ValueError(f"program {self.meta.program!r} still has TODO period lengths")
+        self.autonomous_s = float(periods.autonomous_s)
+        self.match_length = self.autonomous_s + float(periods.driver_s)
+        outcome = reader.outcome
+        self.autonomous_winner = outcome.autonomous_winner if outcome else None
+        self.robots = AsOf(reader.tracks, "agent_id")
+        self.objects = AsOf(reader.objects, "object_id")
+
+    def at(self, t: float) -> StartState:
+        roster = self.meta.roster
+        return StartState(
+            episode_id=self.meta.episode_id,
+            t=t,
+            time_left_s=self.match_length - t,
+            robots=[
+                _robot(row, roster[row["agent_id"]].alliance if row["agent_id"] in roster else None)
+                for row in self.robots.at(t)
+            ],
+            objects=[_object(row) for row in self.objects.at(t)],
+            program=self.meta.program,
+            autonomous_winner=self.autonomous_winner if t >= self.autonomous_s else None,
+        )
+
+
+def _robot(row: dict[str, Any], alliance: str | None) -> RobotState:
+    return RobotState(
+        agent_id=row["agent_id"],
+        x=row["x"],
+        y=row["y"],
+        heading=row["heading"],
+        vx=row["vx"] or 0.0,
+        vy=row["vy"] or 0.0,
+        omega=row["omega"] or 0.0,
+        alliance=alliance,
+    )
+
+
+def _object(row: dict[str, Any]) -> dict[str, Any]:
+    kept = {k: v for k, v in row.items() if k not in ("t", "frame", "conf", "provenance")}
+    kept["attrs"] = json.loads(row["attrs"]) if row.get("attrs") else {}
+    return kept
 
 
 def write_start_states(

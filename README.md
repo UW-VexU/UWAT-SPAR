@@ -7,10 +7,10 @@ search for strategies nobody has played yet. The test case is VEX Override (2026
 - Full technical design: [docs/SPAR_Repo_Spec_V1.md](docs/SPAR_Repo_Spec_V1.md)
 - Research proposal: [docs/SPAR.pdf](docs/SPAR.pdf)
 
-**Status:** skeleton. Every package and module exists as a stub, and the workspace installs,
-lints and tests cleanly. The only working code is the original auto-labeler, waiting to be
-ported (see [Legacy auto-labeler](#legacy-auto-labeler)). Who is doing what next is in
-[Roadmap and tasks](#roadmap-and-tasks).
+**Status:** early build. The shared contract, the Override scene and its scoring, field
+calibration and track smoothing, the task state and score check, and pre-registration are built
+and tested. Most other stages are still stubs. The [build map](#build-map) shows what is done, and
+[Roadmap and tasks](#roadmap-and-tasks) shows who is doing what next.
 
 ## Quick start
 
@@ -80,7 +80,12 @@ uv run ruff check && uv run ruff format --check && uv run pytest
 - Covered so far: `tests/test_workspace.py` checks that every package imports and that `spar`
   mounts every command group, `tests/test_scenes.py` loads every scene in `scenes/`,
   `packages/spar-schema/tests/` covers the scene loader, task state and episode format, and
-  `scenes/override/tests/` covers every Override scoring rule, in NumPy and under JAX. A package
+  `scenes/override/tests/` covers every Override scoring rule, in NumPy and under JAX, and
+  `packages/spar-perception/tests/` covers field calibration, track smoothing, tracking, identity
+  and heading on synthetic cameras, `packages/spar-eval/tests/` covers sealing and verifying a pre-registration, including
+  its git tag, and `packages/spar-state/tests/` plus `scenes/override/tests/test_state.py` cover
+  building the task state, the score check, events and strategy codes, including synthetic
+  Override matches. A package
   with no tests prints `no tests ran`.
 - Package tests that need a scene use a small made-up one, like
   `packages/spar-schema/tests/fixtures/toy_scene/`, so they don't depend on a real game.
@@ -147,7 +152,11 @@ packages/spar-<name>/
 4. **AGPL and GPL code stays out of the core path.** Ultralytics and BoxMOT go in an optional
    `baselines` extra. `bpy` is used only in `render/`.
 5. **Training data cutoff.** Footage recorded after November 30, 2026 may be downloaded but must
-   not be processed by any `spar` command until `spar eval seal` has run.
+   not be processed by any `spar` command until `spar eval seal` has run. Code that cuts, labels
+   or otherwise processes footage first calls
+   `require_processable(recorded_on, CutoffPolicy.load("configs/eval/prereg.yaml"))` from
+   `spar_schema`, which raises `CutoffError` for later footage until a sealed manifest exists.
+   `uv run spar eval cutoff` shows the current status.
 
 ### Scenes
 
@@ -228,7 +237,9 @@ also has a `# Planned` comment listing its own.
 
 ## Command line
 
-The planned commands, from the spec. The groups exist and are empty:
+The commands planned in the spec. Working now: `spar eval seal`, `spar eval verify`,
+`spar eval cutoff`, `spar data catalog`, `spar data start-states`, and `spar state run` on one episode folder, which writes the score check,
+`state.parquet`, `events.parquet` and `strategy.json` (the spec's `--event` form needs the catalog). The rest are not written yet:
 
 ```bash
 spar ingest      events, matches, streams, download, cut, count
@@ -274,6 +285,20 @@ Until they are ported:
 
 ## Roadmap and tasks
 
+### Build map
+
+The spec's architecture, colored by what exists in the repo. Each box's bar shows its modules by
+status, and a dashed arrow marks a hand-off whose file format is not defined yet.
+
+![SPAR build map](docs/build-map.svg)
+
+Redraw it after finishing a task. The script counts the code in each module and runs the tests,
+and its `OWNERS` table says who owns unfinished work:
+
+```bash
+uv run python scripts/build_map.py
+```
+
 ### Milestones
 
 A tentative timeline, from section 12 of the spec. The dates will move. The order won't:
@@ -302,7 +327,8 @@ merges changes there. To change an area you don't own, open an issue or comment 
 | `packages/spar-schema/`, `scenes/`, root `pyproject.toml`, CI | Leo |
 | `spar-ingest`: `events_api.py`, `counts.py` | Leo |
 | `spar-ingest`: `registry.py`, `streams.py`, `cut.py` | Evan |
-| `spar-perception/src/spar_perception/autolabel/` | Evan |
+| `spar-perception/src/spar_perception/autolabel/`, `detect/` | Evan |
+| `spar-perception/src/spar_perception/calib/`, `filter/`, `track/`, `heading.py` | Leo |
 | `configs/ingest/`, `configs/perception/` | Evan |
 | `docs/labeling_guide.md` | Evan |
 | `spar_ingest/cli.py`, `uv.lock`, this README | Shared (see the rules below) |
@@ -334,6 +360,55 @@ Code:
 - [ ] **L4.** Once API access arrives: the Events API client, `spar ingest events`, `matches` and
       `count`, and the count of streamed matches by program
 - [ ] **L5.** Review Evan's registry columns (E1) within a day, because E2 and E3 build on them
+- [x] **L6.** Field calibration and track smoothing in `spar-perception`: fit the pixel-to-field
+      homography from labeled landmarks with OpenCV RANSAC and smooth it over time
+      (`calib/homography.py`), and a Kalman filter with an RTS smoother for position, heading,
+      velocity and covariance (`filter/kalman.py`). Done when both pass tests on synthetic camera
+      views and tracks, and write valid `tracks.parquet` rows
+- [x] **L7.** The training data cutoff guard: `spar-eval` `prereg/seal.py` and `verify.py`, and
+      a check that stops footage recorded after November 30, 2026 from being processed until
+      the candidate list is sealed
+- [x] **L8.** Task state and the score check in `spar-state`: build the scene's task state from
+      the object and robot tracks at each checkpoint (generic code, plus an Override plugin in
+      `scenes/override/state.py`), score it, compare it with the official result, and write
+      `state.parquet` and the score check in `episode.json`. Done when a synthetic Override
+      episode passes and a wrong one fails, with tests
+- [x] **L9.** Tracking and identity in `spar-perception`: link per-frame robot detections into
+      tracks with ByteTrack (`track/bytetrack.py`), split a track where its alliance color flips,
+      and assign each track to a robot on the match roster by alliance, motion and, in VEX U,
+      robot size (`track/identity.py`). Done when synthetic detections of four robots, with
+      occlusions and broken tracks, come out as one series per roster robot
+- [x] **L10.** Heading in `spar-perception` (`heading.py`): the long axis of each robot's mask,
+      mapped onto the field, with the robot's motion picking which way it faces. Done when
+      synthetic robots get headings within a few degrees and `tracks.parquet` rows are written
+      with heading
+- [x] **L11.** Behavior in `spar-state` (spec stage 4), in three parts:
+  - [x] **L11a. Events.** Generic rules turn object status changes (picked up, placed,
+        removed) and robots entering or leaving field regions into events, and an Override
+        plugin adds Toggle flips (`events/rules.py`, `scenes/override/events.py`)
+  - [x] **L11b. Strategy codes.** Check, compare and agree on codes: the field types, the
+        distance between two codes, the coder threshold and Cohen's kappa (`strategy/`), plus
+        an Override plugin that extracts each alliance's five-field code
+        (`scenes/override/strategy.py`)
+  - [x] **L11c. Wiring.** `spar state run` also writes `events.parquet` and `strategy.json`
+
+  Plan-level actions (`actions.py`) wait for the simulator's action set, so they belong with the
+  spar-sim work (L13c).
+- [x] **L12.** Episode catalog and start states in `spar-data`: `catalog.py` finds episodes and
+      filters them by scene, rules version, program, match date and score check; `start_states.py`
+      samples moments from them into `start_states.parquet`, the hand-off to the simulators and
+      the physics repo; `spar data catalog` and `spar data start-states`. Done when synthetic
+      episodes are found and filtered, and sampled start states match the episodes and round-trip
+- [ ] **L13.** The plan-level simulator in `spar-sim` (spec section 6.7), in four parts:
+  - [ ] **L13a. Action set and timing.** The scene declares its plan-level actions; `fit.py`
+        fits action durations and robot speeds from mined events and tracks
+  - [ ] **L13b. The JAX environment.** `PlanEnv` with pure `reset_from(start_state)` and
+        `step(state, actions)`, an Override plugin for what each action does to the task state,
+        scoring through `scoring.py`; runs under `jit` and `vmap`
+  - [ ] **L13c. Actions and the replay check.** `spar-state` `actions.py` turns events into
+        plan-level actions; replaying an episode's actions from its start reproduces its score;
+        a throughput benchmark
+  - [ ] **L13d. PettingZoo wrapper and replay plot** (`pettingzoo_wrapper.py`, `viz.py`)
 
 ### Evan's tasks
 
@@ -376,6 +451,8 @@ once E4 has frames. The dates are tentative and mainly show the order of work.
     fields, and record the reason.
   - Write offsets to `matches.parquet`. Never copy or re-encode video: episodes reference the
     stream by ID and offsets.
+  - Before cutting a stream, call `spar_schema.require_processable` with the event's date (see
+    rule 5), so footage from after the cutoff is refused until the candidate list is sealed.
 - **Done when:** 20 matches from at least 2 events are cut, with start times checked by hand
   against the overlay timer.
 
@@ -389,8 +466,16 @@ The biggest task, so start labeling as soon as E3 has a few matches.
   - Set up a labeling tool that exports COCO segmentation, such as CVAT or Label Studio.
   - Write `docs/labeling_guide.md`: what each class covers, and how to handle objects that are
     partly hidden, robots touching each other, and the overlay covering part of the field.
-  - Classes: `robot`, `cup`, `pin`, `toggle`, named as in `scenes/override/scene.yaml`. Field
-    landmarks wait until L3 adds named points to `landmarks.yaml`.
+  - Classes: `robot`, `cup`, `pin`, `toggle`, named as in `scenes/override/scene.yaml`. Also mark
+    the field landmarks named in `scenes/override/landmarks.yaml` where they are visible.
+  - Attributes, because the score depends on them (see `scenes/override/README.md`):
+    - each Pin: the color of each half (red, blue or yellow), lower half first as it stands
+    - each Cup: whether its gray (opaque) half is up or down
+    - each Toggle: which face shows into the field, and whether a Robot is touching it
+    - for objects on a Goal: which Goal, and the level in the stack counting up from the Goal
+
+    Pick a tool and export format that keep these attributes, and describe them in the guide.
+    `scenes/override/state.py` lists the exact values the score check expects.
   - Sample 200 frames spread across events, cameras and match phases (autonomous, driver,
     endgame), from matches recorded before the November 30 cutoff.
   - Mark a held-out split by match, so the frames used to measure the detector are never
@@ -418,6 +503,22 @@ The biggest task, so start labeling as soon as E3 has a few matches.
   the proposal's benchmark table. pycocotools is fine for now; the metric moves to `spar-eval`
   later.
 
+#### E7. Train and run the fast detector (after E4 and E5)
+
+- **Files:** `spar_perception/detect/` (`train.py`, `infer.py`), `configs/perception/`
+- **Needs:** E4's hand labels, E5's teacher labels, and a CUDA GPU.
+- **Do:**
+  - Fine-tune RF-DETR segmentation (the `rfdetr` package) on the teacher labels plus the training
+    split of the hand labels. Use the Nano to Large sizes only; the `rfdetr_plus` sizes have a
+    different license.
+  - Run it over a whole cut match in batches. For each frame, write the robot boxes, scores,
+    masks (cropped to each box) and alliance color in the shape L9's tracker reads,
+    `spar_perception.track.bytetrack.FrameDetections`.
+  - Optional baselines (YOLO26, YOLO-World) go in `detect/baselines/`, under the AGPL
+    `baselines` extra only.
+- **Done when:** mAP50 per class on the held-out hand labels is reported next to the teacher
+  labels' from E5, and one cut match produces detections the tracker accepts.
+
 #### E6 (stretch). Blender field model
 
 Only if Evan knows Blender, after Leo confirms Blender as the renderer and L3 fills the field
@@ -428,6 +529,58 @@ positions.
   `render/src/spar_render/field.py`, in the render environment.
 - **Done when:** the field builds from `scene.yaml` and renders one frame from a raised side view
   like a livestream camera.
+
+### Values still to fill in
+
+Measurements, decisions and inputs the code is waiting on, and where each one goes. Tick a box
+when it is filled in. To list the TODO values left in the Override scene:
+
+```bash
+uv run python -c "from spar_schema import load_scene; print(*load_scene('scenes/override').todos, sep='\n')"
+```
+
+Decisions:
+
+- [ ] **Field frame x direction**: `scenes/override/scene.yaml` `field.frame.x_axis`. Proposed: x
+      toward the blue Alliance Station, y away from the audience, which is the manual's drawing
+      frame. Agree with the physics repo (Leo)
+- [ ] **Physics repo name**, and the `spar-schema` git tag it will pin (Leo, physics repo owners)
+- [ ] **Experiment tracker**: Weights & Biases or MLflow (team)
+- [ ] **Renderer**: Blender (recommended) or Isaac Sim Replicator (Leo)
+- [ ] **License plan**, confirmed with the university (Leo)
+
+Our robots and team inputs:
+
+- [ ] **Top speed** of the 15 in and 24 in robots: `scenes/override/robot_limits.yaml`
+      `max_speed_mps`, measured on the robots
+- [ ] **Carry capacity** of each robot, in Pins and Cups: `robot_limits.yaml` `carry`
+- [ ] **Robot log format**, and how logs come off the robots: needed by `spar-gt`
+- [ ] **Team CAD exported as meshes**: needed by `render/`
+- [ ] **Overhead camera mount** location above the practice field: needed by `spar-gt`
+- [ ] **Location of the Push Back MARL pipeline**: the baseline and retrospective test
+
+From studies and real data:
+
+- [ ] **Strategy code `missing_penalty` and field weights**: `scenes/override/strategy_code.yaml`,
+      from the coder study on 50 matches
+- [ ] **Coder threshold**: from the same study, passed to `spar eval seal --threshold`
+- [ ] **Kalman noise**: `accel_std` 2.0 m/s² and `angular_accel_std` 8.0 rad/s² in
+      `spar_perception.filter.kalman.KalmanConfig` are guesses; tune against scrimmage ground truth
+- [ ] **Landmark pixel noise** for `point_covariance`, and the RANSAC threshold (default 3 px):
+      measure from the hand labels (E4)
+- [ ] **Homography smoothing window** (default 15 frames): tune on real streams
+- [ ] **Strategy extraction distances**: how near a Toggle, Loader, Goal or opponent counts for
+      `time_split` (0.5 to 0.7 m now) in `scenes/override/strategy.py`; tune against the hand-coded
+      matches
+- [ ] **Teacher prompts and per-class thresholds**: `scene.yaml` `prompts` and `configs/perception/`,
+      tuned on real frames (E5)
+
+Field details the manual's drawings don't give:
+
+- [ ] **White tape width**: the Midfield's boundary is the tape's inner edge, but `scene.yaml` uses
+      the centerline. Measure a field, or read it from the field's STEP model
+- [ ] **Toggle position on the wall**: `scene.yaml` uses the wall's inside face
+- [ ] **Load Zone corners**: not in `scene.yaml` yet, so the Quadrant outlines ignore them
 
 ### Working in parallel across time zones
 
