@@ -11,7 +11,8 @@ search for strategies nobody has played yet. The test case is VEX Override (2026
 data: the shared contract, the Override scene and its scoring, field calibration, tracking and
 heading, the task state, score check, events, actions and strategy codes, the episode catalog and
 start states, the plan-level simulator, and pre-registration. Still to come: ingest, detection,
-object tracks, learning, most metrics, scrimmage ground truth and rendering.
+finding the field in real frames, object tracks, one perception run from video to tracks,
+learning, most metrics, scrimmage ground truth and rendering.
 [Where things stand](#where-things-stand) lists both, the [build map](#build-map) shows it
 module by module, and [Next steps](#next-steps) lists the most urgent work.
 
@@ -308,8 +309,10 @@ under [Leo's tasks](#leos-tasks) or [Evan's tasks](#evans-tasks) and drop it fro
 | 5 | **E2 and E3.** Download the streams and cut them into matches | Evan | Gives real matches to label and to run the pipeline on |
 | 6 | Agree the field frame x direction with the physics repo, and measure our robots' top speed and carry | Leo | The episode writer refuses a scene with TODO values, so real Override episodes can't be written until these are filled in |
 | 7 | **E4.** Labeling guide and 200 hand-labeled frames, agreeing with Leo how Pin colors and Cup direction are labeled | Evan | The biggest task. The detector (E5, E7) learns from these labels, and L15c reads the same attributes |
-| 8 | **L15.** Object tracks | Leo | The task state, events and actions read them. Building it on synthetic detections now means it's ready for E7's |
-| 9 | Order AprilTags, and ask the team for the robot log format, the Push Back MARL pipeline, the experiment tracker and the CAD meshes | Leo | Waits on people outside the repo. Scrimmage ground truth and rendering need them |
+| 8 | **L18.** Finding the field in real frames | Leo | Every real track needs it, and it can start now on the livestream screenshots in `tests/fixtures/frames/` |
+| 9 | **L15.** Object tracks | Leo | The task state, events and actions read them. Building it on synthetic detections now means it's ready for E7's |
+| 10 | **L17.** `spar perception run`, connecting the perception pieces | Leo | Nothing turns a real match into `tracks.parquet` until it exists. A stand-in detector lets it be built before E7 |
+| 11 | Order AprilTags, and ask the team for the robot log format, the Push Back MARL pipeline, the experiment tracker and the CAD meshes | Leo | Waits on people outside the repo. Scrimmage ground truth and rendering need them |
 
 After these: L4 once API access arrives, E5 and then E7, L14, L16, and E6 if there's time.
 
@@ -332,7 +335,7 @@ Still to do:
 | Area | What's left | Waiting on |
 |---|---|---|
 | `spar-ingest` | Registry, stream download and cutting (E1 to E3); the Events API client and match counts (L4) | Events API access, for L4 |
-| `spar-perception` | Object tracks with placed and held status (`objects.py`, L15); the auto-labeler port (E5); the fast detector (E7); the landmark keypoint model (`calib/landmarks.py`) | Hand-labeled frames (E4), for all but L15 |
+| `spar-perception` | Object tracks with placed and held status (`objects.py`, L15); `spar perception run`, connecting detection, calibration, tracking, heading and smoothing (`run.py`, L17); finding the field in real frames (`calib/find_field.py`, L18); the auto-labeler port (E5); the fast detector (E7); a learned landmark model if L18's line fit isn't enough (`calib/landmarks.py`) | Hand-labeled frames (E4), for E5 and E7. L15, L17 and L18 can start now |
 | `spar-state` | The learned event model (`events/model.py`) | Scrimmage video synced to robot logs |
 | `spar-data` | Exports to LeRobot, PettingZoo, RLDS and OG-MARL, and publishing (`convert/`, `publish.py`) | Episodes worth exporting |
 | `spar-learn` | Behavior cloning (L16); multi-agent RL, the opponent pool, the strategy search and its archive, exploiters, export | Mined episodes for real styles; L16 starts on synthetic ones |
@@ -346,7 +349,7 @@ Still to do:
 The spec's architecture, colored by what exists in the repo. Each box's bar shows its modules by
 status, and a dashed arrow marks a hand-off whose file format is not defined yet. Under the
 diagram, every module is listed by name with its status, and each unfinished one with the task
-that owns it (L14 to L16 for Leo, E1 to E7 for Evan).
+that owns it (L14 to L18 for Leo, E1 to E7 for Evan).
 
 ![SPAR build map](docs/build-map.svg)
 
@@ -374,6 +377,19 @@ list all wait on it.
 | Search | Jan 10, 2027 | Plan-level sim fitted, cloned styles, multi-run search, exploiters done. Candidate list sealed |
 | Tests | Jan 24, 2027 | Novelty test on post-cutoff events, scrimmage tests, VEX U autonomous tests, Push Back retrospective |
 | Submission | Feb 1, 2027 | Paper submitted to Autonomous Robots, Synthetic Data for Robot Learning collection |
+
+### How many matches
+
+| Number | What for |
+|---|---|
+| 20 matches, from at least 2 events | The first target, and when E3 is done. Their start times are checked by hand against the overlay timer |
+| 200 hand-labeled frames | E4, from the first cut matches (about 10 per match if they all come from those 20), spread across events, cameras and match phases. A held-out split by match measures the detector |
+| 50 matches, each coded by two people | The coder study. It gives the coder threshold, Cohen's kappa, and the strategy code weights and `missing_penalty` that are still TODO |
+| Every streamed match before November 30, 2026 | Mining, the simulator's timing fit and learning. L4 counts how many there are, by program |
+| Matches after November 30, 2026 | Downloaded only, for the novelty test. Cutting and processing them is blocked until the candidate list is sealed (rule 5) |
+
+So 20 is enough to get going. After that, the more matches the better, up to every match streamed
+before the cutoff.
 
 ### Who owns what
 
@@ -515,6 +531,39 @@ Code:
 
   Done when a policy trained on synthetic episodes of two scripted styles plays each one back
   in the simulator when given its code
+- [ ] **L17.** `spar perception run` (`run.py`): connect the perception pieces into one run that
+      turns a cut match into its tracks, in three parts:
+  - [ ] **L17a. The chain:** read the match's frames straight from the stream at its offsets
+        (never copying video), then detect (E7), calibrate (L18, smoothed as in L6), track and
+        identify (L9), find headings (L10), smooth (L6) and add object tracks (L15). Writes
+        `tracks.parquet` with covariance, ready for `spar state run`. A stand-in detector that
+        reads boxes from a file keeps this testable before E7
+  - [ ] **L17b. Where a robot is:** the bottom middle of a box is the robot's near edge, not its
+        center (see `track/identity.py`), so move it about half a robot away from the camera
+        before smoothing
+  - [ ] **L17c. Many matches:** the `--event` form runs every cut match of an event from the
+        registry (E1 to E3)
+
+  Done when synthetic detections from a known camera give tracks within a few centimeters of
+  the true paths, and one real cut match runs end to end once E7 and L18 are in
+- [ ] **L18.** Finding the field in real frames (`calib/find_field.py`). The homography from L6
+      already maps the field's square floor, which looks like a slanted four-sided shape on
+      video, back to a square, from any 4 or more known floor points. What's missing is finding
+      those points in real streams, where camera height and angle vary. In three parts:
+  - [ ] **L18a. Lines, extended:** find floor-level lines in the frame (where the walls meet the
+        tiles, and the Midfield tape), and extend them to where they meet, even when a corner is
+        off-screen or behind a robot. Match the crossings to `scenes/override/landmarks.yaml` and
+        fit with `fit_homography`. Only floor-level points go in the fit: the top of the wall is
+        29 cm higher, a different plane, and would bend it
+  - [ ] **L18b. Fallback:** when the fit fails or its error is high, someone clicks 4 or more
+        floor landmarks once per stream, and the same points are used for the whole stream.
+        Livestream cameras barely move, and the smoothing absorbs small bumps
+  - [ ] **L18c. Check:** the reprojection error against hand-marked landmarks, on the 8
+        livestream screenshots in `tests/fixtures/frames/` and on E4's frames
+
+  Done when the field is found automatically in most of those frames, each with its error
+  reported, and the rest fall back to clicks. A learned landmark model (`calib/landmarks.py`)
+  comes later, only if the line fit fails on too many streams
 
 ### Evan's tasks
 

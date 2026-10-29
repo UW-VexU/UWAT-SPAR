@@ -39,6 +39,8 @@ OWNERS = {
     "spar-eval:metrics/sim_realism.py": ("leo", "L14"),
     "spar-perception:objects.py": ("leo", "L15"),
     "spar-learn:bc.py": ("leo", "L16"),
+    "spar-perception:run.py": ("leo", "L17"),
+    "spar-perception:calib/find_field.py": ("leo", "L18"),
     "render:field.py": ("todo", "E6"),  # a stretch task, so not colored as assigned
     "render:camera.py": ("todo", "E6"),
 }
