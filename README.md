@@ -12,8 +12,8 @@ data: the shared contract, the Override scene and its scoring, field calibration
 heading, the task state, score check, events, actions and strategy codes, the episode catalog and
 start states, the plan-level simulator, and pre-registration. Still to come: ingest, detection,
 object tracks, learning, most metrics, scrimmage ground truth and rendering.
-[Where things stand](#where-things-stand) lists both, and the [build map](#build-map) shows it
-module by module.
+[Where things stand](#where-things-stand) lists both, the [build map](#build-map) shows it
+module by module, and [Next steps](#next-steps) lists the most urgent work.
 
 ## Quick start
 
@@ -292,6 +292,26 @@ Until they are ported:
   current folder.
 
 ## Roadmap and tasks
+
+### Next steps
+
+The most urgent work across both task lists, in order. Most of it is about getting real matches
+into the pipeline, since everything after that waits on them. When a step is done, tick its task
+under [Leo's tasks](#leos-tasks) or [Evan's tasks](#evans-tasks) and drop it from this list.
+
+| # | Step | Owner | Why it's urgent |
+|---|---|---|---|
+| 1 | Request VEX Events API access | Leo | The longest wait. L4 needs it, and so do E2 and E3 to switch from hand-typed match times |
+| 2 | Give Evan repo access, and set up the Hugging Face dataset repo | Leo | Evan's PRs need the first, and E4's hand labels go in the second |
+| 3 | **E1.** Stream list and registry tables | Evan | The first step toward real matches. E2 and E3 build on its columns |
+| 4 | **L5.** Review E1 within a day of the PR | Leo | So E2 and E3 don't wait |
+| 5 | **E2 and E3.** Download the streams and cut them into matches | Evan | Gives real matches to label and to run the pipeline on |
+| 6 | Agree the field frame x direction with the physics repo, and measure our robots' top speed and carry | Leo | The episode writer refuses a scene with TODO values, so real Override episodes can't be written until these are filled in |
+| 7 | **E4.** Labeling guide and 200 hand-labeled frames, agreeing with Leo how Pin colors and Cup direction are labeled | Evan | The biggest task. The detector (E5, E7) learns from these labels, and L15c reads the same attributes |
+| 8 | **L15.** Object tracks | Leo | The task state, events and actions read them. Building it on synthetic detections now means it's ready for E7's |
+| 9 | Order AprilTags, and ask the team for the robot log format, the Push Back MARL pipeline, the experiment tracker and the CAD meshes | Leo | Waits on people outside the repo. Scrimmage ground truth and rendering need them |
+
+After these: L4 once API access arrives, E5 and then E7, L14, L16, and E6 if there's time.
 
 ### Where things stand
 
