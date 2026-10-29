@@ -1,4 +1,5 @@
-"""Draw docs/build-map.svg: the spec's architecture, with each package colored by how much is built.
+"""Draw docs/build-map.svg: the spec's architecture, with each package colored by how much is built,
+and under it every module by name.
 
 Run from the repo root after finishing a task:
 
@@ -32,10 +33,18 @@ OWNERS = {
     "spar-ingest:cut.py": ("evan", "E3"),
     "spar-ingest:events_api.py": ("blocked", "L4"),
     "spar-ingest:counts.py": ("blocked", "L4"),
+    "spar-eval:stats.py": ("leo", "L14"),
+    "spar-eval:inject.py": ("leo", "L14"),
+    "spar-eval:score_check_sensitivity.py": ("leo", "L14"),
+    "spar-eval:metrics/sim_realism.py": ("leo", "L14"),
+    "spar-perception:objects.py": ("leo", "L15"),
+    "spar-learn:bc.py": ("leo", "L16"),
+    "render:field.py": ("todo", "E6"),  # a stretch task, so not colored as assigned
+    "render:camera.py": ("todo", "E6"),
 }
 STAGES = ["ingest", "perception", "state", "data", "sim", "learn", "eval"]
 PACKAGES = ["spar-schema", *[f"spar-{s}" for s in STAGES], "spar-gt", "render"]
-STATUSES = ["built", "legacy", "evan", "blocked", "todo"]
+STATUSES = ["built", "legacy", "leo", "evan", "blocked", "todo"]
 
 COLORS = {
     "bg": "#ffffff",
@@ -45,6 +54,8 @@ COLORS = {
     "built": "#23804f",
     "built_tint": "#e6f2eb",
     "legacy": "#a86b12",
+    "leo": "#0b7f8a",
+    "leo_tint": "#e3f2f3",
     "evan": "#4652c8",
     "evan_tint": "#eceefa",
     "blocked": "#c0501a",
@@ -59,12 +70,14 @@ text {{ font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif; fill: {fg}
 .b-built {{ fill: {built_tint}; stroke: {built}; }}
 .b-partly {{ fill: {built_tint}; }}
 .b-evan {{ fill: {evan_tint}; stroke: {evan}; }}
+.b-leo {{ fill: {leo_tint}; stroke: {leo}; }}
 .b-outside {{ fill: none; stroke: {todo}; stroke-dasharray: 4 3; }}
 .n-title {{ font-size: 14px; font-weight: 600; }}
 .n-line {{ font-size: 12.5px; fill: {muted}; }}
 .n-pill {{ font-size: 12px; font-weight: 700; letter-spacing: 0.06em; }}
 .t-built, .t-partly {{ fill: {built}; }}
 .t-evan {{ fill: {evan}; }}
+.t-leo {{ fill: {leo}; }}
 .t-todo {{ fill: {muted}; }}
 .edge {{ fill: none; stroke: {fg}; stroke-width: 1.6; opacity: 0.8; }}
 .open {{ stroke-dasharray: 6 4; }}
@@ -74,6 +87,13 @@ text {{ font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif; fill: {fg}
 .lane {{ fill: none; stroke: {line}; stroke-width: 1.2; stroke-dasharray: 2 4; }}
 .lane-label {{ font-size: 12px; font-weight: 700; letter-spacing: 0.1em; fill: {muted}; }}
 .legend {{ font-size: 12.5px; fill: {muted}; }}
+.card {{ fill: {bg}; stroke: {line}; stroke-width: 1.2; }}
+.c-title {{ font-size: 13px; font-weight: 600; }}
+.c-count {{ font-size: 12px; fill: {muted}; }}
+.m-name {{ font-size: 11.5px; }}
+.m-todo {{ fill: {muted}; }}
+.m-tag {{ font-size: 11px; font-weight: 700; fill: {muted}; }}
+.h2 {{ font-size: 16px; font-weight: 700; }}
 """
 
 TOP = 76  # height of the title band above the diagram
@@ -97,7 +117,8 @@ def code_lines(path: Path) -> int:
     return len({n.lineno for node in body for n in ast.walk(node) if hasattr(n, "lineno")})
 
 
-def module_statuses() -> dict[str, list[str]]:
+def module_statuses() -> dict[str, list[tuple[str, str, str]]]:
+    """Each package's modules as (path, status, note)."""
     found = {}
     for name in PACKAGES:
         src = ROOT / (
@@ -105,17 +126,22 @@ def module_statuses() -> dict[str, list[str]]:
             if name == "render"
             else f"packages/{name}/src/{name.replace('-', '_')}"
         )
-        statuses = []
+        modules = []
         for path in sorted(src.rglob("*.py")):
             if path.name in ("__init__.py", "cli.py"):
                 continue
-            key = f"{name}:{path.relative_to(src).as_posix()}"
-            if key in OWNERS:
-                statuses.append(OWNERS[key][0])
+            rel = path.relative_to(src).as_posix()
+            key = f"{name}:{rel}"
+            if key in OWNERS and (OWNERS[key][0] != "todo" or code_lines(path) <= 5):
+                modules.append((rel, *OWNERS[key]))
             else:
-                statuses.append("built" if code_lines(path) > 5 else "todo")
-        found[name] = statuses
+                modules.append((rel, "built" if code_lines(path) > 5 else "todo", ""))
+        found[name] = modules
     return found
+
+
+def statuses(modules: list[tuple[str, str, str]]) -> list[str]:
+    return [status for _, status, _ in modules]
 
 
 def test_summary() -> str:
@@ -140,19 +166,30 @@ def package_status(statuses: list[str]) -> str:
         return "built"
     if built:
         return "partly"
-    return "evan" if "evan" in statuses else "todo"
+    for owner in ("evan", "leo"):
+        if owner in statuses:
+            return owner
+    return "todo"
 
 
 def node(x, y, w, title, line, statuses=None, status=None, h=BOX_H, outside=False):
     tint = (
-        " b-outside" if outside else f" b-{status}" if status in ("built", "partly", "evan") else ""
+        " b-outside"
+        if outside
+        else f" b-{status}"
+        if status in ("built", "partly", "evan", "leo")
+        else ""
     )
     out = [f'<rect class="box{tint}" x="{x}" y="{y}" width="{w}" height="{h}" rx="6"/>']
     out.append(f'<text class="n-title mono" x="{x + 14}" y="{y + 24}">{esc(title)}</text>')
     if status:
-        word = {"built": "BUILT", "partly": "PARTLY BUILT", "evan": "EVAN", "todo": "NOT STARTED"}[
-            status
-        ]
+        word = {
+            "built": "BUILT",
+            "partly": "PARTLY BUILT",
+            "evan": "EVAN",
+            "leo": "NEXT: LEO",
+            "todo": "NOT STARTED",
+        }[status]
         out.append(
             f'<text class="n-pill t-{status}" x="{x + w - 14}" y="{y + 24}" '
             f'text-anchor="end">{word}</text>'
@@ -184,7 +221,8 @@ def arrow(points, label=None, at=(0, 0), defined=True, anchor="middle", faint=Fa
     return out
 
 
-def diagram(found: dict[str, list[str]]) -> str:
+def diagram(modules: dict[str, list[tuple[str, str, str]]]) -> str:
+    found = {name: statuses(rows) for name, rows in modules.items()}
     scenes = sorted(p.parent.name for p in (ROOT / "scenes").glob("*/scene.yaml"))
     parts = [
         node(
@@ -192,7 +230,7 @@ def diagram(found: dict[str, list[str]]) -> str:
             20,
             260,
             ", ".join(f"scenes/{s}" for s in scenes),
-            "rules, field, scoring, state",
+            "rules, scoring, plugins",
             status="built",
             h=62,
         ),
@@ -201,7 +239,7 @@ def diagram(found: dict[str, list[str]]) -> str:
             20,
             600,
             "spar-schema",
-            "scene loading, episode files, task state, cutoff guard; every stage uses it",
+            "scenes, episode files, task state, start states, action set; every stage uses it",
             found["spar-schema"],
             package_status(found["spar-schema"]),
             h=62,
@@ -281,9 +319,10 @@ def legend(y: float) -> str:
     items, x = [], 40
     for color, word in [
         ("built", "Built"),
-        ("legacy", "Old script, to port"),
+        ("legacy", "Old script"),
+        ("leo", "Assigned to Leo"),
         ("evan", "Assigned to Evan"),
-        ("blocked", "Waiting on something outside"),
+        ("blocked", "Waiting on others"),
         ("todo", "Not started"),
     ]:
         items.append(
@@ -302,10 +341,60 @@ def legend(y: float) -> str:
     return "".join(items)
 
 
+CARD_COLUMNS, CARD_GAP, LINE = 3, 16, 17
+CARD_W = (960 - 80 - CARD_GAP * (CARD_COLUMNS - 1)) / CARD_COLUMNS
+
+
+def module_cards(modules: dict[str, list[tuple[str, str, str]]], top: float) -> tuple[str, float]:
+    """Every module by name, in a card per package, colored by status. Returns the SVG and its
+    height."""
+    parts = [
+        f'<text class="h2" x="40" y="{top + 18}">Modules</text>',
+        f'<text class="legend" x="122" y="{top + 18}">Each package\'s modules, with the task '
+        "that owns the unfinished ones</text>",
+    ]
+    names = list(modules)
+    y = top + 36
+    for row in range(0, len(names), CARD_COLUMNS):
+        group = names[row : row + CARD_COLUMNS]
+        height = 40 + LINE * max(len(modules[name]) for name in group)
+        for i, name in enumerate(group):
+            x = 40 + i * (CARD_W + CARD_GAP)
+            rows = modules[name]
+            built = sum(status == "built" for _, status, _ in rows)
+            parts.append(
+                f'<rect class="card" x="{x:.1f}" y="{y}" width="{CARD_W:.1f}" height="{height}" '
+                'rx="6"/>'
+            )
+            parts.append(
+                f'<text class="c-title mono" x="{x + 12:.1f}" y="{y + 22}">{esc(name)}</text>'
+            )
+            parts.append(
+                f'<text class="c-count" x="{x + CARD_W - 12:.1f}" y="{y + 22}" '
+                f'text-anchor="end">{built} of {len(rows)}</text>'
+            )
+            for k, (rel, status, note) in enumerate(rows):
+                ly = y + 42 + k * LINE
+                faded = "" if status == "built" else " m-todo"
+                parts.append(
+                    f'<circle cx="{x + 17:.1f}" cy="{ly - 4}" r="4.5" fill="{COLORS[status]}"/>'
+                )
+                parts.append(
+                    f'<text class="m-name mono{faded}" x="{x + 28:.1f}" y="{ly}">{esc(rel)}</text>'
+                )
+                if note:
+                    parts.append(
+                        f'<text class="m-tag" x="{x + CARD_W - 12:.1f}" y="{ly}" '
+                        f'text-anchor="end">{esc(note)}</text>'
+                    )
+        y += height + CARD_GAP
+    return "".join(parts), y - top
+
+
 def main() -> None:
     found = module_statuses()
-    total = sum(len(s) for s in found.values())
-    built = sum(s.count("built") for s in found.values())
+    total = sum(len(rows) for rows in found.values())
+    built = sum(statuses(rows).count("built") for rows in found.values())
     commit = subprocess.run(
         ["git", "rev-parse", "--short", "HEAD"], cwd=ROOT, capture_output=True, text=True
     ).stdout.strip()
@@ -318,7 +407,8 @@ def main() -> None:
     ).stdout.strip()
     where = f"commit {commit}" + (" plus uncommitted changes" if changes else "")
     summary = f"{built} of {total} modules built · {test_summary()} · {where}"
-    height = TOP + 904 + 72
+    cards, cards_height = module_cards(found, TOP + 904 + 72)
+    height = TOP + 904 + 72 + cards_height + 16
     svg = (
         f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 {height}" '
         f'width="960" height="{height}" '
@@ -333,6 +423,7 @@ def main() -> None:
         f'<text class="sub" x="40" y="64">{esc(summary)}</text>'
         f'<g transform="translate(0 {TOP})">{diagram(found)}</g>'
         f"{legend(TOP + 904 + 24)}"
+        f"{cards}"
         "</svg>\n"
     )
     OUT.write_text(svg, encoding="utf-8")

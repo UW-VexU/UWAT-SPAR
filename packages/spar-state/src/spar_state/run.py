@@ -1,8 +1,9 @@
-"""What `spar state run` does to one episode: score check, events and strategy codes.
+"""What `spar state run` does to one episode: score check, events, actions and strategy codes.
 
 run_episode() reads the episode's tracks, objects and outcome, then writes back:
     state.parquet    the task state and points at each checkpoint
     events.parquet   events from the generic rules and the scene's events plugin
+    actions.parquet  plan-level actions, when the scene has an actions plugin and a sim section
     strategy.json    each alliance's strategy code, when the scene has a strategy plugin
     episode.json     the score check per checkpoint
 """
@@ -12,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from spar_schema import EpisodeReader, EpisodeWriter, Scene, ScoreCheck
+from spar_state.actions import InferredActions, actions_table, infer_actions
 from spar_state.events.rules import events_table, extract_events
 from spar_state.score_check import check_scores
 from spar_state.strategy.extract import extract_codes, strategy_record
@@ -22,6 +24,7 @@ class RunResult:
     checks: dict[str, ScoreCheck]  # by checkpoint
     events: int  # how many events were written
     codes: dict[str, dict[str, Any]] | None  # by alliance, or None without a strategy plugin
+    actions: InferredActions | None = None  # None without an actions plugin
 
 
 def run_episode(
@@ -34,6 +37,9 @@ def run_episode(
     episode = EpisodeReader(path)
     result = check_scores(episode, scene, tolerance=tolerance)
     events = extract_events(episode, scene)
+    actions = None
+    if scene.has_plugin("actions") and scene.spec.sim is not None:
+        actions = infer_actions(episode, events, scene)
     codes = None
     if scene.has_plugin("strategy") and scene.strategy_code is not None:
         codes = extract_codes(episode, events, scene)
@@ -43,6 +49,8 @@ def run_episode(
     ) as writer:
         writer.write_state(result.states)
         writer.write_events(events_table(events))
+        if actions is not None:
+            writer.write_actions(actions_table(actions.rows))
         if codes is not None:
             writer.write_strategy(strategy_record(codes, scene))
-    return RunResult(checks=result.checks, events=len(events), codes=codes)
+    return RunResult(checks=result.checks, events=len(events), codes=codes, actions=actions)

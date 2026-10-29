@@ -126,6 +126,28 @@ plugins:
   state: state.py:build_state         # the TaskState below, from objects and robots
   events: events.py:extra_events      # Toggle flips, on top of the generic events
   strategy: strategy.py:extract_code  # each alliance's five-field strategy code
+  actions: sim.py:infer_action        # events to the plan-level actions below
+  sim: sim.py:rules                   # what each action does, for spar-sim
+
+# The plan-level simulator (spar-sim, spec section 6.7). A robot does one action at a time: it drives
+# to the action's destination, if it has one, then spends a handling time fitted from real matches
+# (spar sim fit). sim.py says what each action does to the state.
+sim:
+  # What a robot carries: a Pin, named by its two half colors, or a Cup.
+  items: [pin_red_blue, pin_red_yellow, pin_blue_yellow, pin_yellow_yellow, cup]
+  carry: 2                          # a first guess, until robot_limits.yaml and mined tracks say
+  standoff_m: 0.3                   # robots stop this far short of a Goal, Loader or Toggle
+  actions:
+    idle: {}
+    move_to: {args: {region: [midfield, red_1, red_2, blue_1, blue_2]}, to: region}
+    pick: {args: {item: items}}     # off the floor, near where the robot is
+    load: {args: {loader: loader, item: items}, to: loader}
+    # flip "no" puts the Pin's first named color down, or the Cup's opaque half up.
+    place: {args: {goal: goal, item: items, flip: ["no", "yes"]}, to: goal}
+    remove: {args: {goal: goal}, to: goal}  # takes the top object off a Goal
+    flip_toggle: {args: {toggle: toggle}, to: toggle}
+    park_midfield: {to: midfield}
+    defend: {args: {opponent: opponents}, to: opponent}
 
 # The arrays scoring.py reads (spar_schema.TaskStateSpec). Codes are positions in `values`.
 state:

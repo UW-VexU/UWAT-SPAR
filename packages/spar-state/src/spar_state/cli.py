@@ -26,7 +26,7 @@ def run(
         bool, typer.Option(help="Write even if the scene has TODO values. For development only.")
     ] = False,
 ) -> None:
-    """Score check, events and strategy codes for one episode, written back into it."""
+    """Score check, events, actions and strategy codes for one episode, written back into it."""
     from spar_schema import EpisodeReader, load_scene
     from spar_state.run import run_episode
 
@@ -43,6 +43,11 @@ def run(
             detail = f"computed winner {check.computed_winner}, official {check.official_winner}"
         typer.echo(f"{checkpoint}: {verdict} ({detail})")
     typer.echo(f"events: {result.events} written")
+    if result.actions is not None:
+        typer.echo(
+            f"actions: {len(result.actions.rows)} written; left out {result.actions.unattributed} "
+            f"events with no robot and {result.actions.unmapped} with no action"
+        )
     if result.codes is None:
         typer.echo("strategy codes: none, the scene has no strategy plugin")
     else:

@@ -85,11 +85,16 @@ class AsOf:
 
     def at(self, t: float) -> list[dict[str, Any]]:
         found = []
-        for name, times in self.times.items():
-            k = bisect_right(times, t)
-            if k:
-                found.append(self.rows[self.index[name][k - 1]])
+        for name in self.times:
+            row = self.latest(name, t)
+            if row is not None:
+                found.append(row)
         return found
+
+    def latest(self, name: str, t: float) -> dict[str, Any] | None:
+        """The latest row for one key at or before t, or None."""
+        k = bisect_right(self.times.get(name, []), t)
+        return self.rows[self.index[name][k - 1]] if k else None
 
 
 class EpisodeMoments:

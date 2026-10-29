@@ -7,10 +7,13 @@ search for strategies nobody has played yet. The test case is VEX Override (2026
 - Full technical design: [docs/SPAR_Repo_Spec_V1.md](docs/SPAR_Repo_Spec_V1.md)
 - Research proposal: [docs/SPAR.pdf](docs/SPAR.pdf)
 
-**Status:** early build. The shared contract, the Override scene and its scoring, field
-calibration and track smoothing, the task state and score check, and pre-registration are built
-and tested. Most other stages are still stubs. The [build map](#build-map) shows what is done, and
-[Roadmap and tasks](#roadmap-and-tasks) shows who is doing what next.
+**Status:** early build, with no real match data through it yet. Built and tested on synthetic
+data: the shared contract, the Override scene and its scoring, field calibration, tracking and
+heading, the task state, score check, events, actions and strategy codes, the episode catalog and
+start states, the plan-level simulator, and pre-registration. Still to come: ingest, detection,
+object tracks, learning, most metrics, scrimmage ground truth and rendering.
+[Where things stand](#where-things-stand) lists both, and the [build map](#build-map) shows it
+module by module.
 
 ## Quick start
 
@@ -78,15 +81,15 @@ uv run ruff check && uv run ruff format --check && uv run pytest
   `scripts/fetch_test_data.py` (not written yet) and never committed.
 - pytest uses `--import-mode=importlib`, so test files in different packages may share a name.
 - Covered so far: `tests/test_workspace.py` checks that every package imports and that `spar`
-  mounts every command group, `tests/test_scenes.py` loads every scene in `scenes/`,
-  `packages/spar-schema/tests/` covers the scene loader, task state and episode format, and
-  `scenes/override/tests/` covers every Override scoring rule, in NumPy and under JAX, and
-  `packages/spar-perception/tests/` covers field calibration, track smoothing, tracking, identity
-  and heading on synthetic cameras, `packages/spar-eval/tests/` covers sealing and verifying a pre-registration, including
-  its git tag, and `packages/spar-state/tests/` plus `scenes/override/tests/test_state.py` cover
-  building the task state, the score check, events and strategy codes, including synthetic
-  Override matches. A package
-  with no tests prints `no tests ran`.
+  mounts every command group, and `tests/test_scenes.py` loads every scene. Package tests cover
+  `spar-schema` (scene loader, action set, task state, start states, episode format),
+  `spar-perception` (calibration, smoothing, tracking, identity and heading on synthetic
+  cameras), `spar-state` (task state, score check, events, actions, strategy codes), `spar-data`
+  (catalog, start states), `spar-sim` (the environment under `jit` and `vmap`, timing fits, the
+  replay check, the PettingZoo wrapper, the benchmark) and `spar-eval` (sealing and verifying a
+  pre-registration). `scenes/override/tests/` covers every scoring rule in NumPy and JAX, and the
+  Override plugins on synthetic matches, including a replay that reproduces a match's score. A
+  package with no tests prints `no tests ran`.
 - Package tests that need a scene use a small made-up one, like
   `packages/spar-schema/tests/fixtures/toy_scene/`, so they don't depend on a real game.
 
@@ -164,8 +167,9 @@ Each game is a folder in `scenes/`. `scenes/override/` is the reference:
 
 | File | Contents |
 |---|---|
-| `scene.yaml` | Field, objects, programs, timing, teacher prompts, objective |
+| `scene.yaml` | Field, objects, programs, timing, teacher prompts, objective, task state arrays, the simulator's action set |
 | `scoring.py` | `score(state, xp)`: points per alliance, written with array operations so it runs in NumPy and JAX |
+| `state.py`, `events.py`, `strategy.py`, `sim.py` | Plugins named in `scene.yaml` `plugins:`: the game's part of the task state, events, strategy codes, actions and simulator rules |
 | `strategy_code.yaml` | Strategy code fields, distances, weights, coder threshold |
 | `landmarks.yaml` | Named field points for calibration |
 | `robot_limits.yaml` | Our robots' speed and carry limits, used only by the search |
@@ -196,6 +200,8 @@ $SPAR_DATA/
 ├── labels/       teacher/, hand/, render/ (COCO segmentation)
 ├── models/       detector/, landmarks/, event_model/
 ├── episodes/     <scene>/<rules_version>/<program>/<event_sku>/<episode_id>/
+├── start_states/ sampled moments for the simulators (spar data start-states)
+├── sim/          fitted simulator timing (spar sim fit)
 ├── renders/      rendered matches
 ├── gt/           scrimmage ground truth
 ├── runs/         Hydra outputs, search archives, checkpoints
@@ -237,9 +243,11 @@ also has a `# Planned` comment listing its own.
 
 ## Command line
 
-The commands planned in the spec. Working now: `spar eval seal`, `spar eval verify`,
-`spar eval cutoff`, `spar data catalog`, `spar data start-states`, and `spar state run` on one episode folder, which writes the score check,
-`state.parquet`, `events.parquet` and `strategy.json` (the spec's `--event` form needs the catalog). The rest are not written yet:
+The commands planned in the spec. Working now: `spar eval seal`, `verify` and `cutoff`;
+`spar data catalog` and `start-states`; `spar sim fit`, `replay` and `bench`; and `spar state run`
+on one episode folder, which writes the score check, `state.parquet`, `events.parquet`,
+`actions.parquet` and `strategy.json` (the spec's `--event` form needs the catalog). The rest are
+not written yet:
 
 ```bash
 spar ingest      events, matches, streams, download, cut, count
@@ -247,7 +255,7 @@ spar perception  autolabel, review, train-detector, run
 spar state       run
 spar data        catalog, start-states, convert, publish
 spar gt          build
-spar sim         fit
+spar sim         fit, replay, bench
 spar learn       bc, search, exploit, export
 spar eval        seal, verify, novelty, report
 ```
@@ -285,10 +293,40 @@ Until they are ported:
 
 ## Roadmap and tasks
 
+### Where things stand
+
+Built and tested on synthetic data. No real matches have gone through the pipeline yet.
+
+| Area | Built |
+|---|---|
+| `spar-schema` | Scene loading, episode tables, reader and writer, task state, start states, the plan-level action set, the training data cutoff check |
+| Override scene | Field geometry and rules from manual v2.1, scoring, and plugins for task state, events, strategy codes, actions and the simulator |
+| `spar-perception` | Field calibration, track smoothing (Kalman filter and RTS smoother), tracking (ByteTrack), identity, heading |
+| `spar-state` | Task state and score check, events, plan-level actions, strategy codes (`spar state run`) |
+| `spar-data` | Episode catalog and start states (`spar data catalog`, `start-states`) |
+| `spar-sim` | The JAX plan-level simulator, timing fits, the replay check, the throughput benchmark, the PettingZoo wrapper, the replay plot (`spar sim fit`, `replay`, `bench`) |
+| `spar-eval` | Sealing and verifying the pre-registration (`spar eval seal`, `verify`, `cutoff`) |
+
+Still to do:
+
+| Area | What's left | Waiting on |
+|---|---|---|
+| `spar-ingest` | Registry, stream download and cutting (E1 to E3); the Events API client and match counts (L4) | Events API access, for L4 |
+| `spar-perception` | Object tracks with placed and held status (`objects.py`, L15); the auto-labeler port (E5); the fast detector (E7); the landmark keypoint model (`calib/landmarks.py`) | Hand-labeled frames (E4), for all but L15 |
+| `spar-state` | The learned event model (`events/model.py`) | Scrimmage video synced to robot logs |
+| `spar-data` | Exports to LeRobot, PettingZoo, RLDS and OG-MARL, and publishing (`convert/`, `publish.py`) | Episodes worth exporting |
+| `spar-learn` | Behavior cloning (L16); multi-agent RL, the opponent pool, the strategy search and its archive, exploiters, export | Mined episodes for real styles; L16 starts on synthetic ones |
+| `spar-eval` | Statistics, score check sensitivity and the simulator's score error (L14); detection, tracking, position and outcome metrics, the novelty test, the report | Real data for the numbers; L14 can start now |
+| `spar-gt` | Scrimmage ground truth: AprilTags, overhead camera calibration, robot logs, sync | Tags, the camera mount and the robot log format |
+| `render/` | The Blender field, cameras, animation and labels (E6, stretch) | Team CAD meshes and the renderer decision |
+| `spar-sim` | Maybe later: drives that go around Goals and other field elements. Shortest-path distances to every destination, worked out once per field on a grid, would replace straight line × detour ratio, and robots would follow those paths mid-drive. Still table lookups, so JAX speed stays | Only if `spar sim replay --sampled` on real matches shows drive times or Midfield counts are off |
+
 ### Build map
 
 The spec's architecture, colored by what exists in the repo. Each box's bar shows its modules by
-status, and a dashed arrow marks a hand-off whose file format is not defined yet.
+status, and a dashed arrow marks a hand-off whose file format is not defined yet. Under the
+diagram, every module is listed by name with its status, and each unfinished one with the task
+that owns it (L14 to L16 for Leo, E1 to E7 for Evan).
 
 ![SPAR build map](docs/build-map.svg)
 
@@ -392,23 +430,71 @@ Code:
         (`scenes/override/strategy.py`)
   - [x] **L11c. Wiring.** `spar state run` also writes `events.parquet` and `strategy.json`
 
-  Plan-level actions (`actions.py`) wait for the simulator's action set, so they belong with the
-  spar-sim work (L13c).
+  Plan-level actions (`actions.py`) came with the simulator's action set, in L13a.
 - [x] **L12.** Episode catalog and start states in `spar-data`: `catalog.py` finds episodes and
       filters them by scene, rules version, program, match date and score check; `start_states.py`
       samples moments from them into `start_states.parquet`, the hand-off to the simulators and
       the physics repo; `spar data catalog` and `spar data start-states`. Done when synthetic
       episodes are found and filtered, and sampled start states match the episodes and round-trip
-- [ ] **L13.** The plan-level simulator in `spar-sim` (spec section 6.7), in four parts:
-  - [ ] **L13a. Action set and timing.** The scene declares its plan-level actions; `fit.py`
-        fits action durations and robot speeds from mined events and tracks
-  - [ ] **L13b. The JAX environment.** `PlanEnv` with pure `reset_from(start_state)` and
-        `step(state, actions)`, an Override plugin for what each action does to the task state,
-        scoring through `scoring.py`; runs under `jit` and `vmap`
-  - [ ] **L13c. Actions and the replay check.** `spar-state` `actions.py` turns events into
-        plan-level actions; replaying an episode's actions from its start reproduces its score;
-        a throughput benchmark
-  - [ ] **L13d. PettingZoo wrapper and replay plot** (`pettingzoo_wrapper.py`, `viz.py`)
+- [x] **L13.** The plan-level simulator in `spar-sim` (spec section 6.7), in four parts:
+  - [x] **L13a. Action set and actions.** The scene declares its plan-level actions in a `sim`
+        section of `scene.yaml` (`spar_schema.action_set()`). `spar-state` `actions.py` turns
+        events into those actions, and `spar state run` writes `actions.parquet`, with an
+        Override plugin in `scenes/override/sim.py`
+  - [x] **L13b. Timing.** `fit.py` fits each action's handling time and failure rates, and robot
+        speeds, from `actions.parquet`, events and tracks (`spar sim fit`)
+  - [x] **L13c. The JAX environment.** `PlanEnv` with pure `reset_from(start, key)` and
+        `step(state, actions, key)`, the Override plugin for what each action does, and scoring
+        through `scoring.py`. Runs under `jit` and `vmap`
+  - [x] **L13d. Replay check, benchmark, wrapper and plot.** Replaying an episode's actions
+        from its start reproduces its score (`replay.py`, `spar sim replay`); a throughput
+        benchmark (`bench.py`, `spar sim bench`); the PettingZoo wrapper; the replay plot
+        (`viz.py`). Done when the synthetic Override match replays to its computed score
+        exactly
+
+  First-version simplifications, listed in `spar_sim/env.py` and `scenes/override/sim.py`:
+  - Drive time is the straight-line distance times a detour ratio fitted from tracks (how much
+    longer real paths are), at the robots' average driving speed. So curves and turns cost
+    time, but robots are drawn on the straight line and don't steer around field elements.
+    Shortest paths around field elements are listed under [Where things stand](#where-things-stand),
+    for later if they turn out to matter
+  - Loaders and the floor share one supply of objects
+  - Defense works only through the fitted failure rates
+- [ ] **L14.** Evaluation in `spar-eval` that can be built and tested before real data
+      (spec section 6.9), in three parts:
+  - [ ] **L14a. Statistics** (`stats.py`): bootstrap 95% confidence intervals, and Wilson
+        intervals for success rates. Done when they match reference values
+  - [ ] **L14b. Score check sensitivity** (`inject.py`, `score_check_sensitivity.py`): plant
+        known errors in episodes (a swapped robot identity, a missed object, a wrong placement,
+        a wrong Toggle) and report the share the score check catches, by error type. Done when
+        it runs on synthetic episodes, and an error that can't change the score (swapping two
+        partner robots) is reported as never caught
+  - [ ] **L14c. Simulator score error** (`metrics/sim_realism.py`): the replay score error over
+        many episodes, by match type, with confidence intervals. `spar sim replay` writes its
+        results to a file for this, so the two packages stay apart (rule 2). Done when it
+        reports the error for synthetic episodes
+- [ ] **L15.** Object tracks in `spar-perception` (`objects.py`), which the task state, events
+      and actions all read, in three parts:
+  - [ ] **L15a. Linking:** per-frame object detections into object tracks over time
+        (ByteTrack, as for robots)
+  - [ ] **L15b. Status:** held when an object moves with a robot (and which robot), placed when
+        it sits on a Goal (which Goal, and its stack level), free otherwise
+  - [ ] **L15c. Game attributes:** a scene plugin for what generic code can't name, such as
+        Pin half colors and which way a Cup faces (`scenes/override/`)
+
+  Done when synthetic detections of objects being picked up and stacked give an
+  `objects.parquet` that passes `spar state run`'s score check
+- [ ] **L16.** Behavior cloning in `spar-learn` (`bc.py`): one policy over the simulator's
+      plan-level actions, with the strategy code as an input, so it can play any real style
+      (spec section 6.8), in three parts:
+  - [ ] **L16a. Training data:** observation, action and strategy code for each decision, from
+        episodes' `actions.parquet` replayed through `spar-sim` from their start states
+  - [ ] **L16b. Policy and training** in JAX, and `spar learn bc`
+  - [ ] **L16c. Playback check:** given a style's code, the policy's simulated matches should
+        get strategy codes close to that style's (`spar-state` strategy distance)
+
+  Done when a policy trained on synthetic episodes of two scripted styles plays each one back
+  in the simulator when given its code
 
 ### Evan's tasks
 
@@ -574,6 +660,23 @@ From studies and real data:
       matches
 - [ ] **Teacher prompts and per-class thresholds**: `scene.yaml` `prompts` and `configs/perception/`,
       tuned on real frames (E5)
+
+Simulator:
+
+- [ ] **Lab GPU throughput**: run `uv run spar sim bench --scene override --program vexu` on the
+      lab GPU and record it here (spec section 6.7). A laptop CPU does about 365,000 steps per
+      second over 1,024 matches
+- [ ] **Fitted timing**: run `spar sim fit --scene override` once mined episodes exist. Until
+      then every action has a 1 s median handling time and never fails, robots drive at 1 m/s,
+      and the detour ratio is 1 (straight lines)
+- [ ] **Our robots' driving speed**: the simulator wants average speed while driving, turns
+      included, not top speed. Measure it on a practice run alongside `robot_limits.yaml`
+      `max_speed_mps`
+- [ ] **Carry and standoff**: `scene.yaml` `sim.carry` (2 items) and `sim.standoff_m` (0.3 m) are
+      guesses. Carry should follow `robot_limits.yaml` for our robots and mined tracks for others
+- [ ] **Failure and reach distances**: a place counts as failed when its object comes off within
+      2 s, and as defended when an opponent is within 0.6 m (`spar_sim/fit.py`); a pick within
+      0.6 m of a Loader counts as a load (`scenes/override/sim.py`). Tune on real matches
 
 Field details the manual's drawings don't give:
 
